@@ -1,4 +1,4 @@
-# TorqueX car sales app
+# TurqueX car sales app
 
 The existing HTML theme is now served as a Node.js car dealership application. Start the server to use the storefront, customer accounts, vehicle listings, checkout and administrator dashboard:
 
@@ -41,6 +41,6 @@ Vehicle prices and order totals are stored in USD. Customers can choose a displa
 
 The app uses SQLite for account, inventory, order, promo and session data. Keep the database and secrets out of source control. For production, use HTTPS and a durable mounted database directory. The store intentionally does not collect card numbers.
 
-GTranslate is disabled by default in the example configuration. With a commercial plan that permits the client-side widget, set `GTRANSLATE_ENABLED=true` in the server environment and restart the server. The widget is available throughout the storefront for signed-in and signed-out visitors. Inputs, textareas, selects and editable fields are marked to skip translation, as are the TorqueX name, account name and company address.
+GTranslate is disabled by default in the example configuration. With a commercial plan that permits the client-side widget, set `GTRANSLATE_ENABLED=true` in the server environment and restart the server. The widget is available throughout the storefront for signed-in and signed-out visitors. Inputs, textareas, selects and editable fields are marked to skip translation, as are the TurqueX name, account name and company address.
 
 The widget runs as third-party JavaScript on every screen, including account, checkout and forms, and sends page text for translation. The script can access authenticated account data, URLs, input values and payment details; `notranslate` markers prevent translation but do not restrict script access. Disclose this in the site's privacy policy. This integration uses the client-side widget, not GTranslate's translated-domain proxy. During local testing, the provider's current dropdown script emitted JavaScript errors on repeated pointer/focus events; check with GTranslate if these persist.

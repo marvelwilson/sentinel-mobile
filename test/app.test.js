@@ -128,7 +128,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
       assert.equal(register.response.status, 200, JSON.stringify(register.body));
       token = register.body.token;
       const mail = fs.readFileSync(mailLog, 'utf8').trim().split('\n').map(line => JSON.parse(line))
-        .filter(message => message.to === email && message.subject === 'Verify your TorqueX account').at(-1);
+        .filter(message => message.to === email && message.subject === 'Verify your TurqueX account').at(-1);
       const verify = await send('/api/auth/verification/confirm', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-csrf-token': token },
@@ -296,7 +296,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.match(bankTrackingCode, /^TX-[A-F0-9]{32}$/);
   assert.equal(bankOrder.body.order.tracking.emailStatus, 'sent');
   const trackingMail = fs.readFileSync(mailLog, 'utf8').trim().split('\n').map(line => JSON.parse(line))
-    .find(message => message.subject === 'Your TorqueX tracking link');
+    .find(message => message.subject === 'Your TurqueX tracking link');
   assert.equal(trackingMail.to, 'buyer@example.test');
   assert.ok(trackingMail.text.includes(`https://cars.example.test/track#${bankTrackingCode}`));
   assert.equal((await customer.send('/api/tracking')).response.status, 404);

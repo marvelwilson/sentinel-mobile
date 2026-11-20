@@ -15,7 +15,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[char]);
-  const escWithBrand = value => esc(value).replace(/\btorquex\b/gi, match => `<span class="notranslate" translate="no">${match}</span>`);
+  const escWithBrand = value => esc(value).replace(/\b(?:turquex|torquex)\b/gi, match => `<span class="notranslate" translate="no">${match}</span>`);
   const cartItems = () => {
     try {
       const saved = JSON.parse(localStorage.getItem(cartKey) || '[]');
@@ -163,7 +163,7 @@
         <div class="swiper-slide hero-slide sales-slide-3">
           <div class="hero-overlay"></div>
           <div class="hero-container"><div class="hero-content" data-swiper-parallax="-300">
-            <div class="hero-subtitle">The <span class="notranslate brand-inline" translate="no">TorqueX</span> collection</div>
+            <div class="hero-subtitle">The <span class="notranslate brand-inline" translate="no">TurqueX</span> collection</div>
             <h2 class="hero-title">FIND YOUR <span class="highlight">MATCH</span></h2>
             <p class="hero-description">Explore vehicle details, save your favorites and reserve your selection online.</p>
             <div class="hero-buttons"><a class="button" href="/cars">View collection</a><a class="button button-outline" href="/cart">Saved cars</a></div>
@@ -176,19 +176,19 @@
       <button class="hero-pause" type="button" aria-label="Pause slideshow">Pause</button>
     </section>
     <section class="home-section" data-aos="fade-up">
-      <div class="section-heading"><div><span class="section-badge">The <span class="notranslate brand-inline" translate="no">TorqueX</span> collection</span><h2 class="section-title">FEATURED <span class="accent">VEHICLES</span></h2><div class="section-line"></div><p class="muted">Explore our latest available cars.</p></div><a class="inventory-link" href="/cars">View all inventory <i class="ri-arrow-right-line" aria-hidden="true"></i></a></div>
+      <div class="section-heading"><div><span class="section-badge">The <span class="notranslate brand-inline" translate="no">TurqueX</span> collection</span><h2 class="section-title">FEATURED <span class="accent">VEHICLES</span></h2><div class="section-line"></div><p class="muted">Explore our latest available cars.</p></div><a class="inventory-link" href="/cars">View all inventory <i class="ri-arrow-right-line" aria-hidden="true"></i></a></div>
       <div class="card-grid">${featured.map(carCard).join('') || '<p class="empty-state">New vehicles will be listed soon.</p>'}</div>
     </section>
     <section class="home-intro" data-aos="fade-up">
       <div class="home-intro-copy"><span class="section-badge">Designed for confidence</span><h2 class="section-title">DRIVEN BY <span class="accent">PASSION</span></h2><div class="section-line"></div><p class="muted">Discover the details that matter, find the right vehicle and take the next step from wherever you are.</p><p class="muted">Crypto reservations last one hour. For bank transfers, the one-hour payment window starts when bank details are assigned.</p><a class="button" href="/cars">Browse all cars</a></div>
-      <div class="home-intro-image"><img class="notranslate" translate="no" src="/assets/img/deal/5.jpg" alt="Car from the TorqueX collection" loading="lazy"></div>
+      <div class="home-intro-image"><img class="notranslate" translate="no" src="/assets/img/deal/5.jpg" alt="Car from the TurqueX collection" loading="lazy"></div>
     </section>
     <section class="home-section" data-aos="fade-up">
-      <div class="section-heading"><div><span class="section-badge">Explore the collection</span><h2 class="section-title">MAKES IN <span class="accent">OUR INVENTORY</span></h2><div class="section-line"></div><p class="muted">Browse the makes currently listed on <span class="notranslate brand-inline brand-inline-end" translate="no">TorqueX</span>.</p></div></div>
+      <div class="section-heading"><div><span class="section-badge">Explore the collection</span><h2 class="section-title">MAKES IN <span class="accent">OUR INVENTORY</span></h2><div class="section-line"></div><p class="muted">Browse the makes currently listed on <span class="notranslate brand-inline brand-inline-end" translate="no">TurqueX</span>.</p></div></div>
       <div class="brand-grid">${[...new Set(cars.map(car => car.make))].sort((a, b) => a.localeCompare(b)).map(make => `<a href="/cars" class="brand-tile">${esc(make)}</a>`).join('') || '<p class="muted">Vehicle makes will appear as inventory is added.</p>'}</div>
     </section>
     <section class="home-section" data-aos="fade-up">
-      <div class="section-heading"><div><span class="section-badge">Here to help</span><h2 class="section-title">YOUR <span class="notranslate brand-inline" translate="no">TORQUE<span class="accent">X</span></span><span class="accent"> TEAM</span></h2><div class="section-line"></div><p class="muted">From your first question to your next drive, reach out to our team.</p></div></div>
+      <div class="section-heading"><div><span class="section-badge">Here to help</span><h2 class="section-title">YOUR <span class="notranslate brand-inline" translate="no">TURQUE<span class="accent">X</span></span><span class="accent"> TEAM</span></h2><div class="section-line"></div><p class="muted">From your first question to your next drive, reach out to our team.</p></div></div>
       <div class="card-grid team-grid">
         <article class="panel team-feature"><i class="ri-user-voice-line" aria-hidden="true"></i><h3>Sales conversations</h3><p class="muted">Tell us what you are looking for and request a conversation about your options.</p></article>
         <article class="panel team-feature"><i class="ri-car-line" aria-hidden="true"></i><h3>Vehicle questions</h3><p class="muted">Get in touch about a listing and the details that matter to you.</p></article>
@@ -229,7 +229,7 @@
 
   async function carsPage() {
     const cars = await loadCars();
-    app.innerHTML = `${pageHeading('TorqueX inventory', 'Find your next car', 'Browse current vehicles. Prices can be displayed in your preferred currency.')}
+    app.innerHTML = `${pageHeading('TurqueX inventory', 'Find your next car', 'Browse current vehicles. Prices can be displayed in your preferred currency.')}
       <div class="search-row"><input id="car-search" type="search" placeholder="Search make, model, body type..." aria-label="Search vehicles"><select id="sort-cars" aria-label="Sort vehicles"><option value="new">Newest year</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></div>
       <div id="car-grid" class="card-grid"></div>`;
     const draw = () => {
@@ -307,14 +307,14 @@
   }
 
   async function loginPage(register = false) {
-    app.innerHTML = `<div style="max-width:540px;margin:auto">${pageHeading(register ? 'Join TorqueX' : 'Welcome back', register ? 'Create your account' : 'Sign in')}
+    app.innerHTML = `<div style="max-width:540px;margin:auto">${pageHeading(register ? 'Join TurqueX' : 'Welcome back', register ? 'Create your account' : 'Sign in')}
       <form id="auth-form" class="panel stack">
         ${register ? '<div class="field"><label for="name">Full name</label><input id="name" name="name" autocomplete="name" required minlength="2" maxlength="100"></div>' : ''}
         <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" required></div>
         <div class="field"><label for="password">Password${register ? ' (at least 12 characters)' : ''}</label><input id="password" name="password" type="password" autocomplete="${register ? 'new-password' : 'current-password'}" minlength="${register ? '12' : '1'}" maxlength="128" required></div>
         ${register ? '' : '<a href="/reset-password">Forgot your password?</a>'}
         <button class="button" type="submit">${register ? 'Create account' : 'Sign in'}</button>
-        <p class="muted">${register ? 'Already have an account?' : 'New to <span class="notranslate" translate="no">TorqueX</span>?'} <a href="${register ? '/login' : '/register'}">${register ? 'Sign in' : 'Create an account'}</a></p>
+        <p class="muted">${register ? 'Already have an account?' : 'New to <span class="notranslate" translate="no">TurqueX</span>?'} <a href="${register ? '/login' : '/register'}">${register ? 'Sign in' : 'Create an account'}</a></p>
         ${register ? '<p class="muted">Use a unique password of at least 12 characters and no more than 72 UTF-8 bytes.</p>' : ''}
       </form></div>`;
     document.querySelector('#auth-form').addEventListener('submit', async event => {
@@ -423,7 +423,7 @@
       app.innerHTML = `<div class="panel empty-state"><h2>Sign in to manage your account</h2><a class="button" href="/login">Sign in</a></div>`;
       return;
     }
-    app.innerHTML = `<div class="account-settings">${pageHeading('Your TorqueX account', 'Account settings', 'Choose what you would like to update.')}
+    app.innerHTML = `<div class="account-settings">${pageHeading('Your TurqueX account', 'Account settings', 'Choose what you would like to update.')}
       <div class="account-settings-layout">
         <nav class="settings-nav" aria-label="Account settings sections">
           <button type="button" class="settings-nav-item active" data-settings-section="profile" aria-current="page"><i class="ri-user-line" aria-hidden="true"></i><span><strong>Profile</strong><small>Update your name</small></span><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
@@ -763,7 +763,7 @@
       return;
     }
     const { orders } = await api('/api/orders');
-    app.innerHTML = `${pageHeading('Your TorqueX account', 'My orders', 'Review order details and payment deadlines.')}
+    app.innerHTML = `${pageHeading('Your TurqueX account', 'My orders', 'Review order details and payment deadlines.')}
       <p><a class="button button-secondary" href="/settings">Account settings</a></p><div id="account-orders" class="order-list">${orders.map(order => `<article class="order-card" data-order-id="${esc(order.id)}"></article>`).join('') || '<div class="panel empty-state">No orders yet. <a href="/cars">Browse vehicles</a></div>'}</div>`;
     const versions = new Map();
     const busy = new Set();
@@ -934,7 +934,7 @@
 
   function contactPage() {
     app.innerHTML = `${pageHeading('Get in touch', 'Contact us', 'Have a question about a vehicle or your order? Send us a message.')}
-      <div class="contact-layout"><section class="panel contact-info"><span class="section-badge">Let’s connect</span><h2>CONTACT <span class="accent">INFORMATION</span></h2><div class="section-line"></div><p class="muted">Reach out to the <span class="notranslate" translate="no">TorqueX</span> team, or request a call at your preferred time.</p>${contactInfo()}<a class="button button-secondary" href="/book-call">Request a call</a></section>
+      <div class="contact-layout"><section class="panel contact-info"><span class="section-badge">Let’s connect</span><h2>CONTACT <span class="accent">INFORMATION</span></h2><div class="section-line"></div><p class="muted">Reach out to the <span class="notranslate" translate="no">TurqueX</span> team, or request a call at your preferred time.</p>${contactInfo()}<a class="button button-secondary" href="/book-call">Request a call</a></section>
       <section class="panel"><h2>SEND US A MESSAGE</h2><p class="muted">Your message will be available to our team in the dashboard.</p>
         <form id="contact-form" class="form-grid">
           <div class="field"><label for="contact-name">Name</label><input id="contact-name" name="name" required minlength="2" maxlength="100" autocomplete="name"></div>
@@ -1019,7 +1019,7 @@
       return;
     }
     const summary = await api('/api/admin/summary');
-    app.innerHTML = `${pageHeading('TorqueX management', 'Admin dashboard', 'Inventory, order activity and payment analysis.')}
+    app.innerHTML = `${pageHeading('TurqueX management', 'Admin dashboard', 'Inventory, order activity and payment analysis.')}
       <div class="stats-grid">${[
         ['Available cars', summary.counts.cars_available],
         ['Cars reserved', summary.counts.cars_reserved],
@@ -1523,7 +1523,7 @@
   }
 
   initialize().catch(error => {
-    app.innerHTML = `<div class="panel empty-state"><h1><span class="notranslate" translate="no">TorqueX</span> is temporarily unavailable</h1><p>${esc(error.message)}</p></div>`;
+    app.innerHTML = `<div class="panel empty-state"><h1><span class="notranslate" translate="no">TurqueX</span> is temporarily unavailable</h1><p>${esc(error.message)}</p></div>`;
   }).finally(() => {
     initializing = false;
     clearTimeout(initializationTimeout);

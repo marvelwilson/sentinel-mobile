@@ -98,7 +98,7 @@ test('stock quantities and featured promotions stay consistent across order life
     assert.equal(auth.status, 200, JSON.stringify(auth.body));
     if (name) {
       const mail = fs.readFileSync(mailLog, 'utf8').trim().split('\n').map(line => JSON.parse(line))
-        .filter(message => message.to === email && message.subject === 'Verify your TorqueX account').at(-1);
+        .filter(message => message.to === email && message.subject === 'Verify your TurqueX account').at(-1);
       const verified = await send('/api/auth/verification/confirm', 'POST', { code: mail.text.match(/\b\d{6}\b/)[0] });
       assert.equal(verified.status, 200, JSON.stringify(verified.body));
     }

@@ -88,7 +88,7 @@ test('account verification, session invalidation, contact receipts and email pre
   assert.equal(unverifiedLogin.body.verificationRequired, true);
   assert.equal((await other('/api/orders')).status, 401);
   assert.equal((await buyer('/api/auth/verification')).body.deliveryStatus, 'sent');
-  let registrationCode = latestCode('Verify your TorqueX account', 'buyer@example.test');
+  let registrationCode = latestCode('Verify your TurqueX account', 'buyer@example.test');
   const db = new Database(databasePath);
   assert.notEqual(db.prepare("SELECT code_hash FROM account_codes WHERE purpose = 'registration'").get().code_hash, registrationCode);
   const wrongRegistrationCode = registrationCode === '000000' ? '000001' : '000000';
@@ -98,7 +98,7 @@ test('account verification, session invalidation, contact receipts and email pre
   assert.equal((await buyer('/api/auth/verification/resend', 'POST', {})).status, 429);
   db.prepare("UPDATE code_requests SET created_at = ? WHERE purpose = 'registration'").run(Date.now() - 61000);
   assert.equal((await buyer('/api/auth/verification/resend', 'POST', {})).status, 200);
-  registrationCode = latestCode('Verify your TorqueX account', 'buyer@example.test');
+  registrationCode = latestCode('Verify your TurqueX account', 'buyer@example.test');
   assert.equal((await buyer('/api/auth/verification/confirm', 'POST', { code: registrationCode })).body.user.email, 'buyer@example.test');
   assert.equal((await other('/api/auth/verification/confirm', 'POST', { code: registrationCode })).status, 400);
   assert.equal((await other('/api/auth/login', 'POST', { email: 'buyer@example.test', password: 'buyer-password-12345' })).status, 200);
@@ -115,8 +115,8 @@ test('account verification, session invalidation, contact receipts and email pre
   const unknown = await other('/api/auth/password-reset/request', 'POST', { email: 'unknown@example.test' });
   const requested = await other('/api/auth/password-reset/request', 'POST', resetBody);
   assert.deepEqual(requested.body, unknown.body);
-  for (let i = 0; i < 50 && !mails().some(item => item.subject === 'Your TorqueX password reset code'); i++) await delay(20);
-  let resetCode = latestCode('Your TorqueX password reset code', 'buyer@example.test');
+  for (let i = 0; i < 50 && !mails().some(item => item.subject === 'Your TurqueX password reset code'); i++) await delay(20);
+  let resetCode = latestCode('Your TurqueX password reset code', 'buyer@example.test');
   const stored = db.prepare("SELECT code_hash FROM account_codes WHERE purpose = 'reset'").get();
   assert.notEqual(stored.code_hash, resetCode);
   assert.ok(!JSON.stringify(stored).includes(resetCode));
@@ -127,15 +127,15 @@ test('account verification, session invalidation, contact receipts and email pre
   assert.equal((await resetConfirm(resetCode)).status, 400);
   db.prepare("UPDATE code_requests SET created_at = ? WHERE purpose = 'reset'").run(Date.now() - 61000);
   await other('/api/auth/password-reset/request', 'POST', resetBody);
-  for (let i = 0; i < 50 && mails().filter(item => item.subject === 'Your TorqueX password reset code').length < 2; i++) await delay(20);
-  resetCode = latestCode('Your TorqueX password reset code', 'buyer@example.test');
+  for (let i = 0; i < 50 && mails().filter(item => item.subject === 'Your TurqueX password reset code').length < 2; i++) await delay(20);
+  resetCode = latestCode('Your TurqueX password reset code', 'buyer@example.test');
   const wrongCode = resetCode === '000000' ? '000001' : '000000';
   for (let i = 0; i < 5; i++) assert.equal((await resetConfirm(wrongCode)).status, 400);
   assert.equal((await resetConfirm(resetCode)).status, 400);
   db.prepare("UPDATE code_requests SET created_at = ? WHERE purpose = 'reset'").run(Date.now() - 61000);
   await other('/api/auth/password-reset/request', 'POST', resetBody);
-  for (let i = 0; i < 50 && mails().filter(item => item.subject === 'Your TorqueX password reset code').length < 3; i++) await delay(20);
-  resetCode = latestCode('Your TorqueX password reset code', 'buyer@example.test');
+  for (let i = 0; i < 50 && mails().filter(item => item.subject === 'Your TurqueX password reset code').length < 3; i++) await delay(20);
+  resetCode = latestCode('Your TurqueX password reset code', 'buyer@example.test');
   assert.equal((await resetConfirm(resetCode)).status, 200);
   assert.equal((await resetConfirm(resetCode)).status, 400);
   assert.equal((await buyer('/api/me')).body.user, null);
@@ -143,10 +143,10 @@ test('account verification, session invalidation, contact receipts and email pre
   assert.equal((await other('/api/auth/login', 'POST', { email: 'buyer@example.test', password: 'reset-password-12345' })).status, 200);
   assert.equal((await buyer('/api/account/email/request', 'POST', { newEmail: 'new@example.test', currentPassword: 'wrong' })).status, 400);
   assert.equal((await buyer('/api/account/email/request', 'POST', { newEmail: 'new@example.test', currentPassword: 'reset-password-12345' })).status, 200);
-  const oldCode = latestCode('Your TorqueX email verification code', 'buyer@example.test');
+  const oldCode = latestCode('Your TurqueX email verification code', 'buyer@example.test');
   assert.equal((await buyer('/api/account/email/verify-new', 'POST', { code: oldCode })).status, 400);
   assert.equal((await buyer('/api/account/email/verify-old', 'POST', { code: oldCode })).status, 200);
-  const newCode = latestCode('Your TorqueX email verification code', 'new@example.test');
+  const newCode = latestCode('Your TurqueX email verification code', 'new@example.test');
   assert.equal((await buyer('/api/account/email/verify-new', 'POST', { code: newCode })).body.user.email, 'new@example.test');
   assert.equal((await other('/api/me')).body.user, null);
   assert.equal((await buyer('/api/account/email/verify-new', 'POST', { code: newCode })).status, 400);
@@ -154,7 +154,7 @@ test('account verification, session invalidation, contact receipts and email pre
   assert.equal((await other('/api/auth/login', 'POST', { email: 'new@example.test', password: 'reset-password-12345' })).status, 200);
   db.prepare("UPDATE code_requests SET created_at = ? WHERE purpose = 'email'").run(Date.now() - 61000);
   assert.equal((await buyer('/api/account/email/request', 'POST', { newEmail: 'fail@example.test', currentPassword: 'reset-password-12345' })).status, 200);
-  const secondOldCode = latestCode('Your TorqueX email verification code', 'new@example.test');
+  const secondOldCode = latestCode('Your TurqueX email verification code', 'new@example.test');
   assert.equal((await buyer('/api/account/email/verify-old', 'POST', { code: secondOldCode })).status, 503);
   assert.equal((await buyer('/api/me')).body.user.email, 'new@example.test');
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM account_codes WHERE purpose = 'email'").get().count, 0);
@@ -164,7 +164,7 @@ test('account verification, session invalidation, contact receipts and email pre
   const message = { name: 'Test Buyer', phone: '+12025550123', subject: 'General question', message: 'Hello there' };
   assert.equal((await buyer('/api/contact-messages', 'POST', { ...message, email: 'new@example.test' })).body.confirmationStatus, 'sent');
   assert.equal((await buyer('/api/contact-messages', 'POST', { ...message, email: 'fail@example.test' })).body.confirmationStatus, 'failed');
-  const contactMail = mails().find(item => item.subject === 'We received your message | TorqueX');
+  const contactMail = mails().find(item => item.subject === 'We received your message | TurqueX');
   assert.match(contactMail.html, /Thank you for reaching out/);
   const contactMessages = (await admin('/api/admin/contact-messages')).body.messages;
   assert.equal(contactMessages.find(item => item.email === 'fail@example.test').confirmation_status, 'failed');
@@ -174,7 +174,7 @@ test('account verification, session invalidation, contact receipts and email pre
   for (const template of previews) {
     const result = await admin(`/api/admin/email-previews/${template.id}`);
     assert.equal(result.status, 200);
-    assert.match(result.body.html, /TORQUE/);
+    assert.match(result.body.html, /TURQUE/);
     assert.ok(result.body.text);
   }
   const escaped = renderEmail('contact_received', { name: '<img src=x onerror=alert(1)>', inquiry: 'Question' });

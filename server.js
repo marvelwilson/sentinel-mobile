@@ -1895,7 +1895,7 @@ app.use((error, req, res, next) => {
 
 seedAdmin().then(() => {
   app.listen(port, () => {
-    console.log(`TorqueX car sales app listening on http://localhost:${port}`);
+    console.log(`TurqueX car sales app listening on http://localhost:${port}`);
     if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
       console.warn('No initial admin is configured. Set ADMIN_EMAIL and ADMIN_PASSWORD before startup.');
     }

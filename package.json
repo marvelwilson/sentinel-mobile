@@ -2,7 +2,7 @@
   "name": "torquex-car-sales",
   "version": "1.0.0",
   "private": true,
-  "description": "TorqueX car dealership storefront and administration",
+  "description": "TurqueX car dealership storefront and administration",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
