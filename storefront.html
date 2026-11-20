@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Discover and reserve carefully selected premium vehicles at TorqueX.">
+  <meta name="theme-color" content="#111318">
+  <title class="notranslate" translate="no">TorqueX | Premium Cars</title>
+  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+  <link rel="stylesheet" href="/assets/css/vendor/remixicon.css">
+  <link rel="stylesheet" href="/assets/css/vendor/swiper-bundle.min.css">
+  <link rel="stylesheet" href="/assets/css/vendor/aos.css">
+  <link rel="stylesheet" href="/storefront.css?v=14">
+  <script src="/assets/js/vendor/swiper-bundle.min.js" defer></script>
+  <script src="/assets/js/vendor/aos.js" defer></script>
+  <script src="/storefront.js?v=22" defer></script>
+  <noscript><style>#loading-screen { display: none; }</style></noscript>
+</head>
+<body>
+  <div id="loading-screen" role="status" aria-label="Loading">
+    <div class="loader-container"><div class="speedometer-ring"><div class="speedometer-needle"></div></div></div>
+    <div class="loader-text">LOADING...</div>
+  </div>
+  <aside id="promo-banner" class="promo-banner" aria-label="Current promotion" hidden></aside>
+  <div class="store-topbar">
+    <div class="store-topbar-inner">
+      <a href="mailto:marvelwilsononit@gmail.com"><i class="ri-mail-line" aria-hidden="true"></i> Contact <span class="notranslate brand-inline brand-inline-end" translate="no">TorqueX</span></a>
+      <span><i class="ri-steering-2-line" aria-hidden="true"></i> Exceptional vehicles. Straightforward buying.</span>
+      <a href="/account"><i class="ri-user-line" aria-hidden="true"></i> My account</a>
+    </div>
+  </div>
+  <header class="site-header">
+    <a class="brand notranslate" translate="no" href="/">Torque<span>X</span></a>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-controls="site-nav" aria-expanded="false"><i class="ri-menu-3-line" aria-hidden="true"></i></button>
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <a href="/">Home</a>
+      <a href="/cars">Inventory</a>
+      <details class="nav-dropdown"><summary>Explore</summary><div class="nav-menu"><a href="/contact">Contact</a><a href="/book-call">Book a call</a><a href="/track">Track order</a></div></details>
+      <a href="/cart">Saved cars <span id="cart-count" class="cart-count">0</span></a>
+      <label class="currency-picker">Currency
+        <select id="currency-select" class="notranslate" aria-label="Display currency">
+          <option>USD</option><option>EUR</option><option>GBP</option><option>CAD</option><option>AUD</option><option>JPY</option>
+        </select>
+      </label>
+      <div id="translation-picker" class="currency-picker">
+        <span>Language</span><div class="gtranslate_wrapper"></div><small id="translation-status" role="status"></small>
+      </div>
+      <span id="auth-links"><a href="/login">Sign in</a><a class="button button-small" href="/register">Join</a></span>
+      <details id="user-links" class="nav-dropdown" hidden><summary>Account</summary><div class="nav-menu"><span id="user-name" class="nav-user-name"></span><a href="/account">My orders</a><a href="/settings">Account settings</a><a id="admin-link" href="/admin" hidden>Dashboard</a><button id="logout-button" class="link-button" type="button">Sign out</button></div></details>
+    </nav>
+  </header>
+  <main id="app" class="page-shell" aria-live="polite">
+    <noscript><div class="empty-state">Please enable JavaScript to use the TorqueX storefront.</div></noscript>
+  </main>
+  <footer class="site-footer">
+    <div class="footer-columns">
+      <div><a class="brand notranslate" translate="no" href="/">TORQUE<span>X</span></a><p>Exceptional vehicles. Straightforward buying.</p><a class="footer-cta" href="/book-call">Request a sales call <i class="ri-arrow-right-line" aria-hidden="true"></i></a></div>
+      <div><h2>Explore</h2><ul><li><a href="/">Home</a></li><li><a href="/cars">Browse inventory</a></li><li><a href="/cart">Saved cars</a></li></ul></div>
+      <div><h2>Customer care</h2><ul><li><a href="/account">My orders</a></li><li><a href="/settings">Account settings</a></li><li><a href="/track">Track order</a></li><li><a href="/contact">Contact us</a></li><li><a href="/book-call">Book a call</a></li></ul></div>
+      <div><h2>Get in touch</h2><p><i class="ri-mail-line" aria-hidden="true"></i> <a href="mailto:marvelwilsononit@gmail.com">marvelwilsononit@gmail.com</a></p><p id="footer-phone">Phone number not configured. <a href="/book-call">Request a call</a>.</p><p id="footer-address" class="notranslate" translate="no"></p><p id="footer-hours"></p></div>
+    </div>
+    <div class="footer-bottom"><small>Prices are stored in USD; display conversions use current market exchange rates. Crypto checkout uses a configured GoUrl-supported coin.</small><small>&copy; <span class="notranslate" translate="no">TorqueX</span></small></div>
+  </footer>
+  <div class="floating-contact" aria-label="Contact shortcuts">
+    <a id="phone-shortcut" href="/book-call" aria-label="Request a sales call" title="Request a sales call"><i class="ri-phone-line" aria-hidden="true"></i></a>
+    <a href="/contact#contact-form" aria-label="Open contact form" title="Send a message"><i class="ri-chat-3-line" aria-hidden="true"></i></a>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
