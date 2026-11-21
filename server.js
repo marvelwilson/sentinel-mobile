@@ -529,11 +529,15 @@ function getCryptoConfig(order, user) {
     throw new Error('GoUrl crypto checkout is not configured. Set valid GoUrl public/private keys and a GoUrl-supported coin in the server environment.');
   }
   const boxId = publicKey.split('AA')[0];
-  if (!/^\d+$/.test(boxId) || !publicKey.includes('PUB') || !privateKey.includes('PRV')) {
+  const publicPrefix = publicKey.split('PUB')[0];
+  const privatePrefix = privateKey.split('PRV')[0];
+  if (!/^\d+$/.test(boxId) || !/^[A-Za-z0-9]{50}$/.test(publicKey) ||
+      !/^[A-Za-z0-9]{50}$/.test(privateKey) || !publicKey.includes('PUB') ||
+      !privateKey.includes('PRV') || publicPrefix !== privatePrefix) {
     throw new Error('GoUrl public/private keys do not appear to be a valid payment-box key pair.');
   }
-  const actualCoinName = publicKey.split('AA')[1]?.split('77')[0]?.slice(5).toLowerCase();
-  if (actualCoinName !== coinName) {
+  const actualCoinName = publicKey.split('AA')[1]?.split('77')[0]?.slice(5);
+  if (actualCoinName?.toLowerCase() !== coinName) {
     throw new Error(`GOURL_COIN must match the configured GoUrl public key (${actualCoinName || 'unknown'}).`);
   }
   const period = '1 HOUR';
@@ -541,6 +545,7 @@ function getCryptoConfig(order, user) {
   const iframeId = `gourl_${order.id.replaceAll('-', '')}`;
   const userId = `u${user.id.replaceAll('-', '')}`;
   const userFormat = 'MANUAL';
+  const version = 'version | turquex-node 1.0.0';
   const orderId = order.id;
   const cookieName = '';
   const webdevKey = '';
@@ -549,12 +554,12 @@ function getCryptoConfig(order, user) {
   const width = '530';
   const height = '300';
   const hashData = [
-    boxId, coinName, publicKey, privateKey, webdevKey, amount, amountUsd, period,
-    language, orderId, userId, userFormat, iframeId, width, height
+    boxId, actualCoinName, publicKey, privateKey, webdevKey, amount, amountUsd, period,
+    language, orderId, userId, userFormat, version, iframeId, width, height
   ].join('|');
   return {
     boxId: Number(boxId),
-    coinName,
+    coinName: actualCoinName,
     publicKey,
     amount: 0,
     amountUsd,
@@ -566,6 +571,7 @@ function getCryptoConfig(order, user) {
     orderId,
     cookieName,
     webdevKey,
+    version: Buffer.from(version, 'utf8').toString('base64'),
     hash: crypto.createHash('md5').update(hashData, 'utf8').digest('hex'),
     width: Number(width),
     height: Number(height)
@@ -1389,6 +1395,10 @@ app.post('/api/orders/:id/payment-proof', requireAuth, orderLimiter,
     })();
     res.status(201).json({ ok: true });
   });
+
+app.get('/api/gourl/ipn', (req, res) => {
+  res.type('text').send('Only POST Data Allowed');
+});
 
 app.post('/api/gourl/ipn', (req, res) => {
   const secret = process.env.GOURL_PRIVATE_KEY || '';

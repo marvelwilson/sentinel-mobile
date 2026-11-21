@@ -38,6 +38,9 @@ Administrators can inspect sample versions of all outgoing templates under **Ema
 Administrators can set the public phone number, address and hours under **Contact details**. Use an international phone number (for example `+12025550123`); leave unverified details blank. Until a phone number is configured, the phone shortcut opens the call-request form instead. The home page displays makes drawn from current listings, not claimed brand partnerships. Sample inventory should be replaced with actual listings before launch.
 
 Vehicle prices and order totals are stored in USD. Customers can choose a display currency; the storefront converts prices using the exchange-rate service at `open.er-api.com` and refreshes the cached rate hourly. Crypto checkout creates a one-hour reservation. GoUrl's crypto box receives the immutable USD order amount and reports payment through its configured IPN callback at `/api/gourl/ipn`; set that URL in the GoUrl payment-box settings to the public HTTPS address for this endpoint.
+An HTTP GET to the callback must return the plain text `Only POST Data Allowed` for GoUrl's callback URL check. Payment notifications are sent as POST requests and verified using the configured private key.
+
+The GoUrl box is displayed on the order confirmation screen; it cannot currently be reopened from My orders. If it fails to load or shows an error, do not send funds or place a duplicate order: contact the dealership. Do not pay after the reservation expires. GoUrl's iframe is hosted by GoUrl, so the storefront cannot inspect its contents or verify that a QR code or address is available.
 
 The app uses SQLite for account, inventory, order, promo and session data. Keep the database and secrets out of source control. For production, use HTTPS and a durable mounted database directory. The store intentionally does not collect card numbers.
 

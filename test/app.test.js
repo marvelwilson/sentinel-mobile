@@ -421,7 +421,26 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.equal(Math.round((new Date(order.expiresAt) - new Date(order.createdAt)) / 60000), 60);
   assert.equal(cryptoBox.orderId, order.id);
   assert.equal(cryptoBox.amountUsd, '900');
-  assert.match(cryptoBox.hash, /^[a-f0-9]{32}$/);
+  assert.equal(cryptoBox.coinName, 'Bitcoin');
+  const version = Buffer.from(cryptoBox.version, 'base64').toString('utf8');
+  assert.ok(version);
+  const expectedHash = crypto.createHash('md5').update([
+    cryptoBox.boxId, cryptoBox.coinName, cryptoBox.publicKey, demoPrivateKey, cryptoBox.webdevKey,
+    cryptoBox.amount, cryptoBox.amountUsd, cryptoBox.period, cryptoBox.language, cryptoBox.orderId,
+    cryptoBox.userId, cryptoBox.userFormat, version, cryptoBox.iframeId, cryptoBox.width, cryptoBox.height
+  ].join('|')).digest('hex');
+  assert.equal(cryptoBox.hash, expectedHash);
+
+  const callbackProbe = await fetch(`${origin}/api/gourl/ipn`);
+  assert.equal(callbackProbe.status, 200);
+  assert.match(callbackProbe.headers.get('content-type'), /^text\/plain/);
+  assert.equal(await callbackProbe.text(), 'Only POST Data Allowed');
+  const invalidCallback = await fetch(`${origin}/api/gourl/ipn`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ status: 'payment_received' })
+  });
+  assert.equal(invalidCallback.status, 403);
 
   const callbackBody = new URLSearchParams({
     private_key_hash: crypto.createHash('sha512').update(demoPrivateKey).digest('hex'),

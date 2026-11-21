@@ -682,11 +682,11 @@
           <div class="summary-row"><span>Order status</span><strong class="status ${esc(order.status)}">${esc(order.status.replaceAll('_', ' '))}</strong></div>
           <div class="summary-row"><span>Total</span><strong>$${Number(order.totalUsd).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong></div>
           ${trackingMarkup(order.tracking)}
-          ${paymentMethod === 'bank' ? '<p class="muted">The payment timer starts when bank details are assigned.</p>' : '<div class="summary-row"><span>Payment window</span><strong id="order-countdown" class="timer"></strong></div><h3>Complete crypto payment</h3><p class="muted">Scan the QR code or copy the payment address shown by GoUrl.</p><div id="crypto-box" class="crypto-box">Loading secure GoUrl payment box...</div>'}
+          ${paymentMethod === 'bank' ? '<p class="muted">The payment timer starts when bank details are assigned.</p>' : '<div class="summary-row"><span>Payment window</span><strong id="order-countdown" class="timer"></strong></div><h3>Complete crypto payment</h3><p class="muted">Scan the QR code or copy the payment address shown by GoUrl. If the box shows an error or does not load, contact the dealership and do not send payment.</p><div id="crypto-box" class="crypto-box">Loading GoUrl payment box...</div>'}
           <a class="button button-secondary" href="/account">View order status</a>`;
         bindTrackingControls(box);
         if (order.expiresAt) startCountdown(order.expiresAt, '#order-countdown');
-        if (paymentMethod === 'gourl') await renderGoUrl(result.cryptoBox);
+        if (paymentMethod === 'gourl') await renderGoUrl(result.cryptoBox, order.expiresAt);
       } catch (error) {
         showError(error);
         orderInFlight = false;
@@ -714,7 +714,7 @@
       <p class="muted">Use your order number as the transfer reference. The dealership must verify your transfer before it is marked paid.</p></div>`;
   }
 
-  async function renderGoUrl(box) {
+  async function renderGoUrl(box, expiresAt) {
     try {
       if (!box) throw new Error('GoUrl payment details are missing.');
       if (typeof window.cryptobox_show !== 'function') {
@@ -726,20 +726,40 @@
           }, 10000);
           script.onload = () => { clearTimeout(timeout); resolve(); };
           script.onerror = () => { clearTimeout(timeout); reject(new Error('GoUrl script could not be loaded.')); };
-          script.src = 'https://cdn.jsdelivr.net/gh/cryptoapi/Payment-Gateway@master/js/_source/cryptobox.js';
+          script.src = 'https://cdn.jsdelivr.net/gh/cryptoapi/Payment-Gateway@85d9a27916a2b721d5143b9ed499411246274077/js/_source/cryptobox.js';
           document.head.appendChild(script);
         });
       }
       if (typeof window.cryptobox_show !== 'function') throw new Error('GoUrl script did not provide the payment interface.');
+      const container = document.querySelector('#crypto-box');
+      if (new Date(expiresAt).getTime() <= Date.now()) {
+        container.textContent = 'The payment window has expired. Do not send payment; contact the dealership.';
+        return;
+      }
+      const iframe = document.createElement('iframe');
+      iframe.id = box.iframeId;
+      iframe.title = 'GoUrl crypto payment';
+      iframe.width = box.width;
+      iframe.height = box.height;
+      iframe.addEventListener('error', () => {
+        if (container.contains(iframe)) {
+          container.textContent = 'The GoUrl payment box could not load. Contact the dealership; do not send funds to an unverified address.';
+        }
+      });
+      container.replaceChildren(iframe);
       const params = [
         box.boxId, box.coinName, box.publicKey, box.amount, box.amountUsd, box.period,
         box.language, box.iframeId, box.userId, box.userFormat, box.orderId,
-        box.cookieName, box.webdevKey, box.hash, box.width, box.height
+        box.cookieName, box.webdevKey, box.version, box.hash, box.width, box.height
       ];
       window.cryptobox_show(...params);
+      if (!iframe.getAttribute('src')) throw new Error('GoUrl did not initialize the payment box.');
     } catch (error) {
       console.error('GoUrl payment interface failed:', error);
-      document.querySelector('#crypto-box').innerHTML = '<div class="error">The GoUrl payment interface could not load. Refresh the page or contact the dealership; do not send funds to an unverified address.</div>';
+      const container = document.querySelector('#crypto-box');
+      if (new Date(expiresAt).getTime() > Date.now()) {
+        container.innerHTML = '<div class="error">The GoUrl payment interface could not load. Contact the dealership; do not send funds to an unverified address.</div>';
+      }
     }
   }
 
@@ -751,10 +771,14 @@
       const minutes = Math.floor(left / 60000);
       const seconds = Math.floor((left % 60000) / 1000);
       element.textContent = left ? `${minutes}:${String(seconds).padStart(2, '0')} remaining` : 'Expired';
-      if (!left) clearInterval(state.timer);
+      if (!left) {
+        clearInterval(state.timer);
+        const box = document.querySelector('#crypto-box');
+        if (box) box.textContent = 'The payment window has expired. Do not send payment; contact the dealership.';
+      }
     };
     tick();
-    state.timer = setInterval(tick, 1000);
+    if (new Date(expiresAt).getTime() > Date.now()) state.timer = setInterval(tick, 1000);
   }
 
   async function accountPage() {
