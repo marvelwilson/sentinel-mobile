@@ -10,6 +10,7 @@
   const cartKey = 'torquex.cart';
   const currencyKey = 'torquex.currency';
   const promoKey = 'torquex.promo';
+  const pendingCryptoOrderKey = 'torquex.pendingCryptoOrder';
   const state = { user: null, token: null, rates: null, currency: 'USD', cars: [], timer: null, contact: null };
   let heroSwiper = null;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -562,6 +563,24 @@
       app.innerHTML = `<div class="panel empty-state"><h2>Sign in to checkout</h2><p>Create an account or sign in before placing an order.</p><div class="button-row" style="justify-content:center"><a class="button" href="/login">Sign in</a><a class="button button-secondary" href="/register">Create account</a></div></div>`;
       return;
     }
+    const pendingCryptoOrder = sessionStorage.getItem(pendingCryptoOrderKey);
+    if (pendingCryptoOrder) {
+      app.innerHTML = '<section id="order-result" class="panel" aria-live="polite">Loading your existing order...</section>';
+      try {
+        const result = await api(`/api/orders/${encodeURIComponent(pendingCryptoOrder)}/crypto-box`);
+        await showOrderResult(document.querySelector('#order-result'), result);
+      } catch (error) {
+        app.innerHTML = `<section class="panel"><h1>Could not reopen the payment box</h1><p class="error">${esc(error.message)}</p>
+          <p>Check My orders before placing another order. Do not send funds after the payment deadline.</p>
+          <div class="button-row"><button id="retry-crypto" type="button">Try again</button><a class="button button-secondary" href="/account">My orders</a><button id="new-checkout" type="button">Start a new checkout</button></div></section>`;
+        document.querySelector('#retry-crypto').addEventListener('click', checkoutPage);
+        document.querySelector('#new-checkout').addEventListener('click', () => {
+          sessionStorage.removeItem(pendingCryptoOrderKey);
+          checkoutPage();
+        });
+      }
+      return;
+    }
     const items = cartItems();
     const cars = await loadCars();
     const selected = items.map(item => ({ ...item, car: cars.find(car => car.id === item.carId) }));
@@ -678,15 +697,8 @@
         const order = result.order;
         const box = document.querySelector('#order-result');
         box.hidden = false;
-        box.innerHTML = `<div class="success"><strong>Order ${esc(order.id)} created.</strong> ${paymentMethod === 'bank' ? 'Your vehicle is reserved while the dealership assigns bank details. Check My orders for updates.' : 'Please complete your payment before the one-hour reservation expires.'}</div>
-          <div class="summary-row"><span>Order status</span><strong class="status ${esc(order.status)}">${esc(order.status.replaceAll('_', ' '))}</strong></div>
-          <div class="summary-row"><span>Total</span><strong>$${Number(order.totalUsd).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong></div>
-          ${trackingMarkup(order.tracking)}
-          ${paymentMethod === 'bank' ? '<p class="muted">The payment timer starts when bank details are assigned.</p>' : '<div class="summary-row"><span>Payment window</span><strong id="order-countdown" class="timer"></strong></div><h3>Complete crypto payment</h3><p class="muted">Scan the QR code or copy the payment address shown by GoUrl. If the box shows an error or does not load, contact the dealership and do not send payment.</p><div id="crypto-box" class="crypto-box">Loading GoUrl payment box...</div>'}
-          <a class="button button-secondary" href="/account">View order status</a>`;
-        bindTrackingControls(box);
-        if (order.expiresAt) startCountdown(order.expiresAt, '#order-countdown');
-        if (paymentMethod === 'gourl') await renderGoUrl(result.cryptoBox, order.expiresAt);
+        if (paymentMethod === 'gourl') sessionStorage.setItem(pendingCryptoOrderKey, order.id);
+        await showOrderResult(box, result);
       } catch (error) {
         showError(error);
         orderInFlight = false;
@@ -695,6 +707,19 @@
         document.querySelectorAll('.remove-promo').forEach(item => { item.disabled = false; });
       }
     });
+  }
+
+  async function showOrderResult(container, { order, cryptoBox }) {
+    const isCrypto = order.paymentMethod === 'gourl';
+    container.innerHTML = `<div class="success"><strong>Order ${esc(order.id)}.</strong> ${isCrypto ? 'Please complete your payment before the one-hour reservation expires.' : 'Your vehicle is reserved while the dealership assigns bank details. Check My orders for updates.'}</div>
+      <div class="summary-row"><span>Order status</span><strong class="status ${esc(order.status)}">${esc(order.status.replaceAll('_', ' '))}</strong></div>
+      <div class="summary-row"><span>Total</span><strong>$${Number(order.totalUsd).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong></div>
+      ${trackingMarkup(order.tracking)}
+      ${isCrypto ? '<div class="summary-row"><span>Payment window</span><strong id="order-countdown" class="timer"></strong></div><h3>Complete crypto payment</h3><p class="muted">Scan the QR code or copy the payment address shown by GoUrl. If the box shows an error or does not load, contact the dealership and do not send payment.</p><div id="crypto-box" class="crypto-box">Loading GoUrl payment box...</div>' : '<p class="muted">The payment timer starts when bank details are assigned.</p>'}
+      <a class="button button-secondary" href="/account">View order status</a>`;
+    bindTrackingControls(container);
+    if (order.expiresAt) startCountdown(order.expiresAt, '#order-countdown');
+    if (isCrypto) await renderGoUrl(container.querySelector('#crypto-box'), cryptoBox, order.expiresAt);
   }
 
   function bankPaymentMarkup(payment) {
@@ -714,7 +739,7 @@
       <p class="muted">Use your order number as the transfer reference. The dealership must verify your transfer before it is marked paid.</p></div>`;
   }
 
-  async function renderGoUrl(box, expiresAt) {
+  async function renderGoUrl(container, box, expiresAt) {
     try {
       if (!box) throw new Error('GoUrl payment details are missing.');
       if (typeof window.cryptobox_show !== 'function') {
@@ -731,7 +756,6 @@
         });
       }
       if (typeof window.cryptobox_show !== 'function') throw new Error('GoUrl script did not provide the payment interface.');
-      const container = document.querySelector('#crypto-box');
       if (new Date(expiresAt).getTime() <= Date.now()) {
         container.textContent = 'The payment window has expired. Do not send payment; contact the dealership.';
         return;
@@ -756,7 +780,6 @@
       if (!iframe.getAttribute('src')) throw new Error('GoUrl did not initialize the payment box.');
     } catch (error) {
       console.error('GoUrl payment interface failed:', error);
-      const container = document.querySelector('#crypto-box');
       if (new Date(expiresAt).getTime() > Date.now()) {
         container.innerHTML = '<div class="error">The GoUrl payment interface could not load. Contact the dealership; do not send funds to an unverified address.</div>';
       }
@@ -805,6 +828,7 @@
         <div class="summary-row"><span>Created</span><span>${esc(formatDate(order.createdAt))}</span></div>
         ${trackingMarkup(order.tracking)}
         ${order.status === 'awaiting_payment' && order.expiresAt ? `<div class="summary-row"><span>Pay before ${esc(formatDate(order.expiresAt))}</span><strong class="timer" data-deadline="${esc(order.expiresAt)}"></strong></div>` : ''}
+        ${order.paymentMethod === 'gourl' && order.status === 'awaiting_payment' ? '<p class="muted">Do not send payment after the deadline. Contact the dealership if the GoUrl box shows an error.</p><button class="open-crypto" type="button">Open crypto payment box</button><div class="crypto-box" hidden></div>' : ''}
         ${order.paymentMethod === 'bank' && ['awaiting_bank_assignment', 'awaiting_payment', 'payment_claimed', 'proof_submitted'].includes(order.status) ? bankPaymentMarkup(order.paymentDetails) : ''}
         ${order.paymentMethod === 'bank' && order.status === 'awaiting_payment' ? '<p class="muted">After transferring, report your payment before the timer expires. The dealership must manually verify it.</p><button class="claim-payment" type="button">I have made payment</button>' : ''}
         ${order.status === 'payment_claimed' ? `<div class="notice proof-processing" data-available-at="${esc(order.proofAvailableAt)}">Processing your request. Proof upload opens in <strong class="proof-wait"></strong>. No automatic bank verification is performed.</div>
@@ -815,6 +839,27 @@
         ${order.status === 'proof_submitted' ? '<div class="notice">Payment proof received. The dealership will review it; payment is not yet confirmed.</div>' : ''}
         <div class="order-feedback" role="status"></div>`;
       bindTrackingControls(card);
+      card.querySelector('.open-crypto')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        const container = card.querySelector('.crypto-box');
+        const feedback = card.querySelector('.order-feedback');
+        button.disabled = true;
+        busy.add(order.id);
+        revision++;
+        container.hidden = false;
+        container.textContent = 'Loading GoUrl payment box...';
+        feedback.textContent = '';
+        try {
+          const result = await api(`/api/orders/${encodeURIComponent(order.id)}/crypto-box`);
+          await renderGoUrl(container, result.cryptoBox, result.order.expiresAt);
+        } catch (error) {
+          container.hidden = true;
+          feedback.textContent = error.message;
+        } finally {
+          busy.delete(order.id);
+          if (new Date(order.expiresAt).getTime() > Date.now()) button.disabled = false;
+        }
+      });
       card.querySelector('.proof-upload input[type="file"]')?.addEventListener('change', event => {
         const file = event.currentTarget.files[0];
         card.querySelector('.proof-filename').textContent = file ? file.name : 'No file selected';
@@ -871,6 +916,13 @@
       document.querySelectorAll('[data-deadline]').forEach(element => {
         const seconds = Math.max(0, Math.ceil((new Date(element.dataset.deadline).getTime() - Date.now()) / 1000));
         element.textContent = seconds ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} remaining` : 'Expired';
+        if (!seconds) {
+          const card = element.closest('.order-card');
+          const button = card.querySelector('.open-crypto');
+          if (button) button.disabled = true;
+          const box = card.querySelector('.crypto-box');
+          if (box && !box.hidden) box.textContent = 'The payment window has expired. Do not send payment; contact the dealership.';
+        }
       });
       document.querySelectorAll('.proof-processing').forEach(element => {
         const seconds = Math.max(0, Math.ceil((new Date(element.dataset.availableAt).getTime() - Date.now()) / 1000));

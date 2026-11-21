@@ -233,4 +233,14 @@ test('stock quantities and featured promotions stay consistent across order life
   expiryDb.close();
   assert.equal((await customer('/api/promos/featured')).body.promo, null);
   assert.equal((await customer('/api/promos/validate', 'POST', { code: 'FIXED', items: selection })).status, 400);
+  const expiringCrypto = await customer('/api/orders', 'POST', {
+    items: [{ carId, quantity: 1 }], paymentMethod: 'gourl', currency: 'USD', buyer
+  });
+  assert.equal(expiringCrypto.status, 201);
+  const expiredDb = new Database(databasePath);
+  expiredDb.prepare('UPDATE orders SET expires_at = ? WHERE id = ?')
+    .run('2020-01-01T00:00:00.000Z', expiringCrypto.body.order.id);
+  expiredDb.close();
+  assert.equal((await customer(`/api/orders/${expiringCrypto.body.order.id}/crypto-box`)).status, 409);
+  assert.equal((await customer(`/api/cars/${carId}`)).body.car.availableStock, 7);
 });

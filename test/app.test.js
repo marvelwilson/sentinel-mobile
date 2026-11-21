@@ -431,6 +431,27 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   ].join('|')).digest('hex');
   assert.equal(cryptoBox.hash, expectedHash);
 
+  const reopenUrl = `/api/orders/${order.id}/crypto-box`;
+  const reopened = await customer.send(reopenUrl);
+  assert.equal(reopened.response.status, 200);
+  assert.equal(reopened.response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(reopened.body.cryptoBox, cryptoBox);
+  assert.equal(reopened.body.order.expiresAt, order.expiresAt);
+  assert.equal((await admin.send(reopenUrl)).response.status, 404);
+  assert.equal((await customer.send(`/api/orders/${bankOrderId}/crypto-box`)).response.status, 404);
+  const paymentDb = new Database(databasePath);
+  const originalDetails = paymentDb.prepare('SELECT payment_details FROM orders WHERE id = ?').get(order.id).payment_details;
+  try {
+    for (const cryptoPublicKey of [undefined, 'different-key']) {
+      paymentDb.prepare('UPDATE orders SET payment_details = ? WHERE id = ?')
+        .run(JSON.stringify({ cryptoCoin: 'bitcoin', cryptoPublicKey }), order.id);
+      assert.equal((await customer.send(reopenUrl)).response.status, 409);
+    }
+  } finally {
+    paymentDb.prepare('UPDATE orders SET payment_details = ? WHERE id = ?').run(originalDetails, order.id);
+    paymentDb.close();
+  }
+
   const callbackProbe = await fetch(`${origin}/api/gourl/ipn`);
   assert.equal(callbackProbe.status, 200);
   assert.match(callbackProbe.headers.get('content-type'), /^text\/plain/);
@@ -463,6 +484,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   });
   assert.equal(callback.status, 200);
   assert.equal(await callback.text(), 'cryptobox_updated');
+  assert.equal((await customer.send(reopenUrl)).response.status, 409);
   const unconfirmedOrder = await customer.send('/api/orders');
   assert.equal(unconfirmedOrder.body.orders.find(item => item.id === order.id).status, 'payment_received');
 

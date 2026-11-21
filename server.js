@@ -1232,9 +1232,10 @@ app.post('/api/orders', requireAuth, orderLimiter, async (req, res, next) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerDetails.email)) {
       return res.status(400).json({ error: 'Enter a valid contact email address.' });
     }
+    let cryptoPublicKey;
     if (paymentMethod === 'gourl') {
       try {
-        getCryptoConfig({ id: '00000000-0000-0000-0000-000000000000', total_usd: 1 }, req.session.user);
+        cryptoPublicKey = getCryptoConfig({ id: '00000000-0000-0000-0000-000000000000', total_usd: 1 }, req.session.user).publicKey;
       } catch (error) {
         throw Object.assign(error, { status: 503 });
       }
@@ -1255,7 +1256,7 @@ app.post('/api/orders', requireAuth, orderLimiter, async (req, res, next) => {
       }
       const paymentDetails = paymentMethod === 'bank'
         ? {}
-        : { cryptoCoin: String(process.env.GOURL_COIN || 'bitcoin').toLowerCase() };
+        : { cryptoCoin: String(process.env.GOURL_COIN || 'bitcoin').toLowerCase(), cryptoPublicKey };
       db.prepare(`INSERT INTO orders
         (id, user_id, status, payment_method, currency, subtotal_usd, discount_usd, total_usd, promo_code,
          buyer_details, payment_details, created_at, expires_at)
@@ -1345,6 +1346,26 @@ app.get('/api/orders/:id', requireAuth, (req, res) => {
   if (!order) return res.status(404).json({ error: 'Order not found.' });
   const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
   res.json({ order: orderResult(order, items, true) });
+});
+
+app.get('/api/orders/:id/crypto-box', requireAuth, (req, res, next) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ? AND payment_method = ?')
+    .get(req.params.id, req.session.user.id, 'gourl');
+  if (!order) return res.status(404).json({ error: 'Crypto order not found.' });
+  if (order.status !== 'awaiting_payment' || !order.expires_at || order.expires_at <= nowIso()) {
+    return res.status(409).json({ error: 'This order is no longer awaiting payment. Do not send funds.' });
+  }
+  const details = JSON.parse(order.payment_details);
+  if (!details.cryptoPublicKey || details.cryptoPublicKey !== process.env.GOURL_PUBLIC_KEY) {
+    return res.status(409).json({ error: 'This payment box cannot be safely reopened. Contact the dealership and do not send funds.' });
+  }
+  try {
+    const cryptoBox = getCryptoConfig(order, req.session.user);
+    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+    res.set('Cache-Control', 'no-store').json({ order: orderResult(order, items, true), cryptoBox });
+  } catch (error) {
+    next(Object.assign(error, { status: 503 }));
+  }
 });
 
 app.post('/api/orders/:id/payment-claim', requireAuth, orderLimiter, (req, res) => {
