@@ -30,6 +30,14 @@ button, input, select, textarea { font: inherit; }
 button, .button { border: 0; border-radius: 50px; background: var(--accent); color: white; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 12px 22px; font-weight: 700; transition: background .3s, box-shadow .3s, transform .3s; }
 button:hover, .button:hover { background: var(--accent-hover); color: white; }
 button:disabled { opacity: .55; cursor: wait; }
+.call-calendar { width: 100%; max-width: 430px; }
+.call-calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+.call-calendar-heading button { padding: 6px 14px; }
+.call-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; text-align: center; align-items: center; }
+.call-calendar-grid span { color: var(--muted); font-size: .8rem; }
+.call-calendar-grid button { min-width: 0; padding: 8px 0; border-radius: 6px; background: var(--panel-light); }
+.call-calendar-grid button.selected { background: var(--accent); }
+.call-calendar-grid button:disabled { opacity: .3; cursor: not-allowed; }
 input, select, textarea { color: var(--text); background: #101217; border: 1px solid var(--line); border-radius: 5px; padding: 11px 12px; width: 100%; }
 input:focus, select:focus, textarea:focus { outline: 2px solid #e33a4580; border-color: var(--accent); }
 label { color: var(--muted); font-size: .9rem; }
@@ -103,6 +111,22 @@ label { color: var(--muted); font-size: .9rem; }
 .hero-subtitle { font-size: clamp(.85rem, 1.4vw, 1.2rem); }
 .hero-description { font-size: clamp(1rem, 1.4vw, 1.3rem); }
 .hero-buttons { display: flex; flex-wrap: wrap; gap: 15px; }
+.about-hero { position: relative; min-height: 500px; display: flex; align-items: center; padding: clamp(32px, 6vw, 76px); border-radius: 18px; overflow: hidden; background: linear-gradient(90deg, rgba(0,0,0,.94), rgba(0,0,0,.65) 55%, rgba(0,0,0,.2)), url('/assets/img/hero/1.jpg') center / cover; }
+.about-hero-copy { max-width: 720px; position: relative; }
+.about-hero h1 { font-family: 'Orbitron', sans-serif; font-size: clamp(2rem, 4.5vw, 4rem); line-height: 1.15; margin: 20px 0; }
+.about-hero p { color: #e0e2e5; max-width: 580px; margin-bottom: 28px; }
+.about-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 38px 0; border-bottom: 1px solid var(--line); }
+.about-stats div { display: grid; gap: 4px; text-align: center; }
+.about-stats strong { color: white; font-family: 'Orbitron', sans-serif; font-size: clamp(1.7rem, 4vw, 2.8rem); }
+.about-stats span { color: var(--muted); }
+.about-story { margin-top: 70px; }
+.about-offers { margin-top: 70px; padding: clamp(28px, 5vw, 60px); border: 1px solid #dc354550; border-radius: 18px; background: linear-gradient(120deg, #261013, #111 70%); }
+.about-offers > div { max-width: 800px; }
+.about-offers h2 { font-family: 'Orbitron', sans-serif; font-size: clamp(1.6rem, 3vw, 2.6rem); margin: 18px 0; }
+@media (max-width: 600px) {
+  .about-hero { min-height: 440px; }
+  .about-stats { grid-template-columns: 1fr; }
+}
 .hero-buttons .button { margin: 0; padding: 12px 25px; letter-spacing: 1px; text-transform: uppercase; box-shadow: 0 0 20px rgba(220, 53, 69, .4); }
 .hero-buttons .button:hover { background: #fff; color: #222; transform: translateY(-2px); }
 .hero-buttons .button-outline { border: 2px solid var(--accent); background: transparent; color: #fff; box-shadow: none; }

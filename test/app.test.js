@@ -1,97 +1,27 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
 const crypto = require('node:crypto');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { setTimeout: delay } = require('node:timers/promises');
 const test = require('node:test');
-const Database = require('better-sqlite3');
+const { startFixture, testOptions } = require('./postgres-fixture');
 const bcrypt = require('bcryptjs');
 
 const demoPublicKey = '25654AAo79c3Bitcoin77BTCPUBqwIefT1j9fqqMwUtMI0huVL';
 const demoPrivateKey = '25654AAo79c3Bitcoin77BTCPRV0JG7w3jg0Tc5Pfi34U8o5JE';
 
-test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', async t => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'torquex-test-'));
-  const port = 32000 + Math.floor(Math.random() * 20000);
-  const databasePath = path.join(directory, 'torquex.sqlite');
-  const previous = new Database(databasePath);
-  previous.exec(`
-    CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-      password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'customer', created_at TEXT NOT NULL);
-    INSERT INTO users VALUES ('legacy-user', 'Legacy Buyer', 'legacy@example.test', 'unused', 'customer', '2020-01-01T00:00:00.000Z');
-    CREATE TABLE orders (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), status TEXT NOT NULL,
-      payment_method TEXT NOT NULL, currency TEXT NOT NULL, subtotal_usd REAL NOT NULL, discount_usd REAL NOT NULL DEFAULT 0,
-      total_usd REAL NOT NULL, promo_code TEXT, buyer_details TEXT NOT NULL, payment_details TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
-    INSERT INTO orders VALUES ('legacy-order', 'legacy-user', 'cancelled', 'bank', 'USD', 100, 0, 100, NULL, '{}', '{}',
-      '2020-01-01T00:00:00.000Z', '2020-01-01T01:00:00.000Z');
-    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-    INSERT INTO settings VALUES ('bank_details', '{"bankName":"Old Bank","accountName":"Old Owner","accountNumber":"123"}');
-  `);
-  previous.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync('legacy-password-12345', 12), 'legacy-user');
-  previous.close();
-  const preload = path.join(directory, 'mock-rates.js');
-  const mailLog = path.join(directory, 'emails.jsonl');
-  fs.writeFileSync(preload, `const originalFetch = global.fetch;
-    global.fetch = (url, options) => String(url) === 'https://open.er-api.com/v6/latest/USD'
-      ? Promise.resolve(new Response(JSON.stringify({ result: 'success', rates: { USD: 1, EUR: 0.9, JPY: 150 }, time_last_update_utc: '2026-01-01T00:00:00Z' }), { status: 200 }))
-      : originalFetch(url, options);
-    const mailer = require(${JSON.stringify(require.resolve('nodemailer'))});
-    mailer.createTransport = () => ({ sendMail: async message => {
-      if (message.to === 'marvelwilsononit@gmail.com' || message.to === 'fail@example.test') throw new Error('Simulated mail failure');
-      require('node:fs').appendFileSync(${JSON.stringify(mailLog)}, JSON.stringify(message) + '\\n');
-      return { accepted: [message.to] };
-    } });`);
-  const child = spawn(process.execPath, ['--require', preload, 'server.js'], {
-    cwd: path.resolve(__dirname, '..'),
-    env: {
-      ...process.env,
-      NODE_ENV: 'test',
-      PORT: String(port),
-      DATABASE_PATH: databasePath,
-      SESSION_SECRET: 'test-session-secret-at-least-32-characters',
-      ADMIN_EMAIL: 'admin@example.test',
-      ADMIN_PASSWORD: 'admin-password-12345',
-      GOURL_PUBLIC_KEY: demoPublicKey,
-      GOURL_PRIVATE_KEY: demoPrivateKey,
-      GOURL_COIN: 'bitcoin',
-      SMTP_HOST: 'mock', SMTP_USER: 'test', SMTP_PASSWORD: 'test', SMTP_FROM: 'store@example.test',
-      PUBLIC_BASE_URL: 'https://cars.example.test'
-    },
-    stdio: ['ignore', 'pipe', 'pipe']
+test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', testOptions, async t => {
+  const { origin, messages: mailMessages, db, pool } = await startFixture(t, {
+    mockRates: true, failRecipients: ['marvelwilsononit@gmail.com', 'fail@example.test'],
+    env: { GOURL_PUBLIC_KEY: demoPublicKey, GOURL_PRIVATE_KEY: demoPrivateKey,
+      GOURL_COIN: 'bitcoin', PUBLIC_BASE_URL: 'https://cars.example.test' }
   });
-  let output = '';
-  child.stdout.on('data', chunk => { output += chunk; });
-  child.stderr.on('data', chunk => { output += chunk; });
-  t.after(async () => {
-    if (child.exitCode === null && child.signalCode === null) {
-      const exited = new Promise(resolve => child.once('exit', resolve));
-      const forceStop = setTimeout(() => child.kill('SIGKILL'), 5000);
-      child.kill();
-      await exited;
-      clearTimeout(forceStop);
-    }
-    fs.rmSync(directory, { recursive: true, force: true });
-  });
-
-  const origin = `http://127.0.0.1:${port}`;
-  let ready = false;
-  for (let attempt = 0; attempt < 80; attempt++) {
-    try {
-      const response = await fetch(origin);
-      if (response.ok) {
-        ready = true;
-        break;
-      }
-    } catch {}
-    if (child.exitCode !== null) break;
-    await delay(250);
-  }
-  assert.equal(ready, true, `server did not start:\n${output}`);
+  await pool.query(`INSERT INTO users (id, name, email, password_hash, created_at)
+    VALUES ('legacy-user', 'Legacy Buyer', 'legacy@example.test', $1, '2020-01-01T00:00:00.000Z')`,
+  [bcrypt.hashSync('legacy-password-12345', 12)]);
+  await pool.query(`INSERT INTO orders (id, user_id, status, payment_method, currency, subtotal_usd, total_usd, buyer_details, created_at, expires_at)
+    VALUES ('legacy-order', 'legacy-user', 'cancelled', 'bank', 'USD', 100, 100, '{}', '2020-01-01T00:00:00.000Z', '2020-01-01T01:00:00.000Z')`);
+  await pool.query(`INSERT INTO bank_accounts (id, bank_name, account_name, account_number, created_at)
+    VALUES ('legacy-bank-account', 'Old Bank', 'Old Owner', '123', '2020-01-01')`);
 
   const csrfRejected = await fetch(`${origin}/api/auth/register`, {
     method: 'POST',
@@ -127,7 +57,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
       });
       assert.equal(register.response.status, 200, JSON.stringify(register.body));
       token = register.body.token;
-      const mail = fs.readFileSync(mailLog, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+      const mail = mailMessages
         .filter(message => message.to === email && message.subject === 'Verify your TurqueX account').at(-1);
       const verify = await send('/api/auth/verification/confirm', {
         method: 'POST',
@@ -145,12 +75,17 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   const admin = await createSession('admin@example.test', 'admin-password-12345');
   const legacySession = await createSession('legacy@example.test', 'legacy-password-12345');
   assert.equal((await legacySession.send('/api/me')).body.user.email, 'legacy@example.test');
-  const migratedBanks = await admin.send('/api/admin/banks');
-  assert.equal(migratedBanks.body.banks[0].bankName, 'Old Bank');
-  assert.equal(migratedBanks.body.banks[0].currency, null);
-  const legacyOrder = (await admin.send('/api/admin/orders')).body.orders.find(order => order.id === 'legacy-order');
-  assert.match(legacyOrder.tracking.code, /^TX-[A-F0-9]{32}$/);
-  assert.equal(legacyOrder.tracking.emailStatus, null);
+  assert.equal((await legacySession.send('/api/admin/users')).response.status, 403);
+  const records = await admin.send('/api/admin/users?search=legacy');
+  assert.equal(records.response.status, 200);
+  assert.equal(records.body.total, 1);
+  assert.equal(records.body.users[0].email, 'legacy@example.test');
+  assert.equal(records.body.users[0].order_count, 1);
+  assert.equal('password_hash' in records.body.users[0], false);
+  assert.equal((await admin.send('/api/admin/users?page=0')).response.status, 400);
+  const banks = await admin.send('/api/admin/banks');
+  assert.equal(banks.body.banks[0].bankName, 'Old Bank');
+  assert.equal(banks.body.banks[0].currency, null);
   const carResponse = await admin.send('/api/admin/cars', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-csrf-token': admin.token },
@@ -219,9 +154,31 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.equal((await fetch(`${origin}/contact.html`, { redirect: 'manual' })).headers.get('location'), '/contact');
   assert.equal((await fetch(`${origin}/book-call`)).status, 200);
 
+  let availability = (await customer.send('/api/call-availability')).body;
+  let availableDay = availability.days.find(day => day.slots.length === 5);
+  if (!availableDay) {
+    const [year, month] = availability.month.split('-').map(Number);
+    const nextMonth = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 7);
+    availability = (await customer.send(`/api/call-availability?month=${nextMonth}`)).body;
+    availableDay = availability.days.find(day => day.slots.length === 5);
+  }
+  assert.ok(availableDay);
+  assert.equal(availability.timezone, 'America/New_York');
+  assert.ok(availability.days.some(day => {
+    const weekday = new Date(`${day.date}T00:00:00Z`).getUTCDay();
+    return (weekday === 0 || weekday === 6) && day.slots.length === 0;
+  }));
+  const [availableYear, availableMonth] = availability.month.split('-').map(Number);
+  const laterMonth = new Date(Date.UTC(availableYear, availableMonth - 1 + 6, 1)).toISOString().slice(0, 7);
+  const laterCalendar = await customer.send(`/api/call-availability?month=${laterMonth}`);
+  const laterDay = laterCalendar.body.days.find(day => day.slots.length === 5);
+  assert.ok(laterDay);
+  const newYorkHour = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' });
+  assert.deepEqual([availableDay, laterDay].map(day => day.slots.map(slot => Number(newYorkHour.format(new Date(slot))))),
+    [[9, 10, 11, 14, 15], [9, 10, 11, 14, 15]]);
   const callDetails = {
     name: 'Buyer', email: 'buyer@example.test', phone: '+12025550123',
-    preferredAt: new Date(Date.now() + 86400000).toISOString(), timezone: 'America/New_York', notes: 'Interested in the Roadster'
+    preferredAt: availableDay.slots[0], timezone: 'America/New_York', notes: 'Interested in the Roadster'
   };
   const invalidCall = await customer.send('/api/call-requests', {
     method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify({ ...callDetails, preferredAt: '2020-01-01T00:00:00Z' })
@@ -235,6 +192,11 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
     method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify({ ...callDetails, preferredAt: callDetails.preferredAt.slice(0, 19) })
   });
   assert.equal(ambiguousTime.response.status, 400);
+  const offSchedule = await customer.send('/api/call-requests', {
+    method: 'POST', headers: jsonHeaders(customer),
+    body: JSON.stringify({ ...callDetails, preferredAt: new Date(Date.parse(callDetails.preferredAt) + 30 * 60000).toISOString() })
+  });
+  assert.equal(offSchedule.response.status, 400);
   const call = await customer.send('/api/call-requests', {
     method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify(callDetails)
   });
@@ -260,6 +222,34 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.equal(callUpdate.response.status, 200);
   const confirmedCall = await customer.send(callUrl, { headers: { 'x-request-token': call.body.trackingToken } });
   assert.equal(confirmedCall.body.status, 'confirmed');
+  const addCall = db.prepare(`INSERT INTO call_requests
+    (id, token_hash, name, email, phone, preferred_at, timezone, notes, status, created_at)
+    VALUES (?, ?, 'Buyer', 'buyer@example.test', '+12025550123', ?, 'America/New_York', '', 'requested', ?)`);
+  for (let index = 1; index < 4; index++) {
+    await addCall.run(`capacity-${index}`, `hash-${index}`, availableDay.slots[index], new Date().toISOString());
+  }
+  const lastSlot = { ...callDetails, preferredAt: availableDay.slots[4] };
+  const competingCalls = await Promise.all([0, 1].map(() => customer.send('/api/call-requests', {
+    method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify(lastSlot)
+  })));
+  assert.deepEqual(competingCalls.map(result => result.response.status).sort(), [201, 409]);
+  const winner = competingCalls.find(result => result.response.status === 201);
+  const fullCalendar = await customer.send(`/api/call-availability?month=${availability.month}`);
+  assert.deepEqual(fullCalendar.body.days.find(day => day.date === availableDay.date).slots, []);
+  const decline = await admin.send(`/api/admin/call-requests/${winner.body.id}`, {
+    method: 'PATCH', headers: jsonHeaders(admin), body: JSON.stringify({ status: 'declined' })
+  });
+  assert.equal(decline.response.status, 200);
+  const reopenedCalendar = await customer.send(`/api/call-availability?month=${availability.month}`);
+  assert.deepEqual(reopenedCalendar.body.days.find(day => day.date === availableDay.date).slots, [lastSlot.preferredAt]);
+  const replacement = await customer.send('/api/call-requests', {
+    method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify(lastSlot)
+  });
+  assert.equal(replacement.response.status, 201);
+  const restoreDeclined = await admin.send(`/api/admin/call-requests/${winner.body.id}`, {
+    method: 'PATCH', headers: jsonHeaders(admin), body: JSON.stringify({ status: 'confirmed' })
+  });
+  assert.equal(restoreDeclined.response.status, 409);
 
   const bankCar = await admin.send('/api/admin/cars', {
     method: 'POST', headers: jsonHeaders(admin),
@@ -295,7 +285,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   const bankTrackingCode = bankOrder.body.order.tracking.code;
   assert.match(bankTrackingCode, /^TX-[A-F0-9]{32}$/);
   assert.equal(bankOrder.body.order.tracking.emailStatus, 'sent');
-  const trackingMail = fs.readFileSync(mailLog, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+  const trackingMail = mailMessages
     .find(message => message.subject === 'Your TurqueX tracking link');
   assert.equal(trackingMail.to, 'buyer@example.test');
   assert.ok(trackingMail.text.includes(`https://cars.example.test/track#${bankTrackingCode}`));
@@ -317,9 +307,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.equal(prematureShipment.response.status, 409);
   assert.equal((await admin.send('/api/admin/orders')).body.orders.find(item => item.id === bankOrderId).notificationStatus, 'failed');
   assert.equal((await customer.send(`/api/cars/${bankCar.body.car.id}`)).body.car.status, 'reserved');
-  const oldPending = new Database(databasePath);
-  oldPending.prepare('UPDATE orders SET created_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', bankOrderId);
-  oldPending.close();
+  await db.prepare('UPDATE orders SET created_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', bankOrderId);
   assert.equal((await customer.send(`/api/orders/${bankOrderId}`)).body.order.status, 'awaiting_bank_assignment');
   const other = await createSession('other@example.test', 'other-password-12345', 'Other Buyer');
   const forbiddenClaim = await other.send(`/api/orders/${bankOrderId}/payment-claim`, {
@@ -370,10 +358,8 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
     method: 'POST', headers: proofHeaders, body: png
   });
   assert.equal(earlyProof.response.status, 409);
-  const db = new Database(databasePath);
-  db.prepare('UPDATE payment_proofs SET available_at = ? WHERE order_id = ?').run('2020-01-01T00:00:00.000Z', bankOrderId);
-  db.prepare('UPDATE orders SET expires_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', bankOrderId);
-  db.close();
+  await db.prepare('UPDATE payment_proofs SET available_at = ? WHERE order_id = ?').run('2020-01-01T00:00:00.000Z', bankOrderId);
+  await db.prepare('UPDATE orders SET expires_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', bankOrderId);
   assert.equal((await customer.send(`/api/cars/${bankCar.body.car.id}`)).body.car.status, 'reserved');
   const invalidProof = await customer.send(`/api/orders/${bankOrderId}/payment-proof`, {
     method: 'POST', headers: proofHeaders, body: Buffer.from('not a PNG')
@@ -439,17 +425,15 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.equal(reopened.body.order.expiresAt, order.expiresAt);
   assert.equal((await admin.send(reopenUrl)).response.status, 404);
   assert.equal((await customer.send(`/api/orders/${bankOrderId}/crypto-box`)).response.status, 404);
-  const paymentDb = new Database(databasePath);
-  const originalDetails = paymentDb.prepare('SELECT payment_details FROM orders WHERE id = ?').get(order.id).payment_details;
+  const originalDetails = (await db.prepare('SELECT payment_details FROM orders WHERE id = ?').get(order.id)).payment_details;
   try {
     for (const cryptoPublicKey of [undefined, 'different-key']) {
-      paymentDb.prepare('UPDATE orders SET payment_details = ? WHERE id = ?')
+      await db.prepare('UPDATE orders SET payment_details = ? WHERE id = ?')
         .run(JSON.stringify({ cryptoCoin: 'bitcoin', cryptoPublicKey }), order.id);
       assert.equal((await customer.send(reopenUrl)).response.status, 409);
     }
   } finally {
-    paymentDb.prepare('UPDATE orders SET payment_details = ? WHERE id = ?').run(originalDetails, order.id);
-    paymentDb.close();
+    await db.prepare('UPDATE orders SET payment_details = ? WHERE id = ?').run(originalDetails, order.id);
   }
 
   const callbackProbe = await fetch(`${origin}/api/gourl/ipn`);
@@ -531,7 +515,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   const corrected = await customer.send('/api/tracking', { headers: { 'x-tracking-code': bankTrackingCode } });
   assert.equal(corrected.body.status, 'in_transit');
   assert.deepEqual(corrected.body.events.map(event => event.status), [...stages, 'in_transit']);
-  const messagesSent = fs.readFileSync(mailLog, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  const messagesSent = mailMessages;
   assert.ok(messagesSent.some(message => message.to === 'buyer@example.test' && message.text.includes('Out for delivery')));
   const retryFailure = await admin.send(`/api/admin/orders/${order.id}/tracking-email`, {
     method: 'POST', headers: jsonHeaders(admin), body: '{}'

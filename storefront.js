@@ -228,6 +228,41 @@
     if (!reducedMotion) AOS.refreshHard();
   }
 
+  function aboutPage() {
+    const address = state.contact?.address;
+    app.innerHTML = `<section class="about-hero">
+      <div class="about-hero-copy"><span class="section-badge">A world in motion</span>
+        <h1>THE DRIVE IS <span class="accent">PERSONAL.</span><br>OUR REACH IS GLOBAL.</h1>
+        <p>At <span class="notranslate" translate="no">TurqueX</span>, we believe finding the right car should feel as exciting as driving it. Explore distinctive vehicles and connect with a team ready to help you take the next step.</p>
+        <div class="button-row"><a class="button" href="/cars">Explore our cars</a><a class="button button-outline" href="/book-call">Talk to sales</a></div>
+      </div>
+    </section>
+    <section class="about-stats" aria-label="Our reach">
+      <div><strong>195</strong><span>countries covered</span></div><div><strong>9.5M+</strong><span>car sales worldwide</span></div><div><strong>1</strong><span>shared passion for driving</span></div>
+    </section>
+    <section class="home-intro about-story">
+      <div class="home-intro-copy"><span class="section-badge">Our story</span><h2 class="section-title">A BETTER WAY <span class="accent">FORWARD</span></h2><div class="section-line"></div>
+        <p class="muted">From the first search to the next chapter on the road, we bring the details together in one place. Browse our collection, save the cars that stand out and speak with our team about what matters to you.</p>
+        <p class="muted">With deliveries across 195 countries and more than 9.5 million car sales worldwide, <span class="notranslate" translate="no">TurqueX</span> brings a global perspective to every journey.</p>
+        <a class="button button-secondary" href="/contact">Get in touch</a></div>
+      <div class="home-intro-image"><img src="/assets/img/deal/5.jpg" alt="Car from the TurqueX collection" loading="lazy"></div>
+    </section>
+    <section class="home-section"><div class="section-heading"><div><span class="section-badge">Made for your journey</span><h2 class="section-title">WHY <span class="notranslate" translate="no">TURQUE<span class="accent">X</span></span></h2><div class="section-line"></div></div></div>
+      <div class="card-grid team-grid">
+        <article class="panel team-feature"><i class="ri-global-line" aria-hidden="true"></i><h3>Global perspective</h3><p class="muted">Explore a world of possibilities with a team focused on your journey.</p></article>
+        <article class="panel team-feature"><i class="ri-car-line" aria-hidden="true"></i><h3>Cars worth discovering</h3><p class="muted">Browse vehicle details and find the make and model that fits your life.</p></article>
+        <article class="panel team-feature"><i class="ri-customer-service-2-line" aria-hidden="true"></i><h3>Real conversations</h3><p class="muted">Connect with our sales team for help with vehicles, orders and next steps.</p></article>
+      </div>
+    </section>
+    <section class="about-offers"><div><span class="section-badge">Seasonal offers</span><h2>MORE REASONS TO <span class="accent">DRIVE</span></h2>
+      <p>Our Tesla partnership offers 25% off all Tesla models across the Americas, Europe and Asia in November and December, with limited promo-code uses. <span class="notranslate" translate="no">TurqueX</span> also offers 15% off all cars worldwide. Eligible promo codes can be combined for up to 40% off.</p>
+      <p class="muted">Promo codes and availability are limited. Contact our team for current codes and eligibility; discounts are applied only when valid codes are entered at checkout.</p>
+      <a class="button" href="/contact">Ask about offers</a></div></section>
+    <section class="home-section home-callout"><div><span class="eyebrow">We're here to help</span><h2>LET'S FIND YOUR NEXT DRIVE.</h2>
+      <p class="muted">${address ? `Visit us: <span class="notranslate" translate="no">${esc(address)}</span>` : 'Get in touch with our team to learn more about our collection.'}</p></div>
+      <div class="button-row"><a class="button" href="/book-call">Request a call</a><a class="button button-secondary" href="/contact">Contact us</a></div></section>`;
+  }
+
   async function carsPage() {
     const cars = await loadCars();
     app.innerHTML = `${pageHeading('TurqueX inventory', 'Find your next car', 'Browse current vehicles. Prices can be displayed in your preferred currency.')}
@@ -606,8 +641,8 @@
           </section>
           <section class="panel stack"><h2>Payment method</h2>
             <label class="payment-option"><input type="radio" name="paymentMethod" value="gourl" ${settings.cryptoEnabled ? 'checked' : 'disabled'}>
-              <span><span class="recommended">Recommended · Crypto</span><br><strong>Pay with ${esc(settings.cryptoCoin.toUpperCase())} via GoUrl</strong><br><span class="muted">GoUrl will display the payment QR code and address. The configured GoUrl coin is used; GoUrl's documented list does not include USDT.</span>
-              ${settings.cryptoEnabled ? '' : '<br><span class="error">Crypto checkout is unavailable until valid GoUrl credentials are configured.</span>'}</span>
+              <span><span class="recommended">Recommended · Crypto</span><br><strong>Pay with ${esc(settings.cryptoCoin.toUpperCase())} via GoUrl</strong><br><span class="muted">GoUrl will display your payment QR code and address. Send only ${esc(settings.cryptoCoin.toUpperCase())} to this address.</span>
+              ${settings.cryptoEnabled ? '' : '<br><span class="error">Crypto checkout is currently unavailable.</span>'}</span>
             </label>
             <label class="payment-option"><input type="radio" name="paymentMethod" value="bank" ${!settings.cryptoEnabled && settings.bankTransferEnabled ? 'checked' : ''} ${settings.bankTransferEnabled ? '' : 'disabled'}>
               <span><strong>Bank transfer</strong><br><span class="muted">The dealership will assign bank details to your order. Your one-hour payment window begins after assignment. Check My orders for updates.</span></span>
@@ -1003,15 +1038,15 @@
     if (!state.contact) return '<p class="muted">Contact details are temporarily unavailable.</p>';
     const { phone, address, hours } = state.contact;
     return `<div class="contact-detail"><i class="ri-mail-line" aria-hidden="true"></i><div><h3>Email</h3><a href="mailto:marvelwilsononit@gmail.com">marvelwilsononit@gmail.com</a></div></div>
-      <div class="contact-detail"><i class="ri-phone-line" aria-hidden="true"></i><div><h3>Phone</h3>${phone ? `<a href="tel:${esc(phone)}">${esc(phone)}</a>` : '<span class="muted">Phone number not configured. <a href="/book-call">Request a call</a>.</span>'}</div></div>
-      <div class="contact-detail"><i class="ri-map-pin-line" aria-hidden="true"></i><div><h3>Address</h3>${address ? `<span class="muted notranslate" translate="no">${esc(address)}</span>` : '<span class="muted">Not configured yet.</span>'}</div></div>
-      <div class="contact-detail"><i class="ri-time-line" aria-hidden="true"></i><div><h3>Hours</h3><span class="muted">${esc(hours || 'Not configured yet.')}</span></div></div>`;
+      <div class="contact-detail"><i class="ri-phone-line" aria-hidden="true"></i><div><h3>Phone</h3>${phone ? `<a href="tel:${esc(phone)}">${esc(phone)}</a>` : '<span class="muted"><a href="/book-call">Request a call</a>.</span>'}</div></div>
+      ${address ? `<div class="contact-detail"><i class="ri-map-pin-line" aria-hidden="true"></i><div><h3>Address</h3><span class="muted notranslate" translate="no">${esc(address)}</span></div></div>` : ''}
+      ${hours ? `<div class="contact-detail"><i class="ri-time-line" aria-hidden="true"></i><div><h3>Hours</h3><span class="muted">${esc(hours)}</span></div></div>` : ''}`;
   }
 
   function contactPage() {
     app.innerHTML = `${pageHeading('Get in touch', 'Contact us', 'Have a question about a vehicle or your order? Send us a message.')}
       <div class="contact-layout"><section class="panel contact-info"><span class="section-badge">Let’s connect</span><h2>CONTACT <span class="accent">INFORMATION</span></h2><div class="section-line"></div><p class="muted">Reach out to the <span class="notranslate" translate="no">TurqueX</span> team, or request a call at your preferred time.</p>${contactInfo()}<a class="button button-secondary" href="/book-call">Request a call</a></section>
-      <section class="panel"><h2>SEND US A MESSAGE</h2><p class="muted">Your message will be available to our team in the dashboard.</p>
+      <section class="panel"><h2>SEND US A MESSAGE</h2><p class="muted">Our team is here to help.</p>
         <form id="contact-form" class="form-grid">
           <div class="field"><label for="contact-name">Name</label><input id="contact-name" name="name" required minlength="2" maxlength="100" autocomplete="name"></div>
           <div class="field"><label for="contact-email">Email</label><input id="contact-email" name="email" type="email" required maxlength="254" autocomplete="email"></div>
@@ -1055,16 +1090,68 @@
     }
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     app.innerHTML = `${pageHeading('Talk to our team', 'Book a sales call', 'Choose your preferred time. Our team will review your request; it is not confirmed until the status changes.')}
-      <div class="contact-layout"><section class="panel contact-info"><span class="section-badge">Personal assistance</span><h2>LET’S <span class="accent">TALK CARS</span></h2><div class="section-line"></div><p class="muted">Share your contact details and a preferred time. Save the private status link after submitting to check for confirmation.</p><p class="muted">Your time zone: <strong>${esc(timezone || 'Unavailable')}</strong></p><a href="/contact">Prefer to send a message?</a></section>
+      <div class="contact-layout"><section class="panel contact-info"><span class="section-badge">Personal assistance</span><h2>LET’S <span class="accent">TALK CARS</span></h2><div class="section-line"></div><p class="muted">Share your contact details and a preferred time. Save the private status link after submitting to check for confirmation.</p><p class="muted">Our calendar uses New York time. Times are also shown in your time zone: <strong>${esc(timezone || 'Unavailable')}</strong>.</p><a href="/contact">Prefer to send a message?</a></section>
       <section class="panel"><h2>REQUEST A CALL</h2><form id="call-form" class="form-grid">
         <div class="field"><label for="call-name">Name</label><input id="call-name" name="name" required minlength="2" maxlength="100" autocomplete="name"></div>
         <div class="field"><label for="call-email">Email</label><input id="call-email" name="email" type="email" required maxlength="254" autocomplete="email"></div>
         <div class="field"><label for="call-phone">Phone</label><input id="call-phone" name="phone" type="tel" required maxlength="30" autocomplete="tel"></div>
-        <div class="field"><label for="call-time">Preferred date and time (${esc(timezone || 'time zone unavailable')})</label><input id="call-time" name="preferredAt" type="datetime-local" required></div>
+        <div class="field field-full"><span>Choose an available day (New York time)</span><div id="call-calendar" class="call-calendar" aria-label="Sales call availability"></div></div>
+        <div class="field field-full"><label for="call-time">Available times</label><select id="call-time" name="preferredAt" required disabled><option value="">Select a day first</option></select></div>
         <div class="field field-full"><label for="call-notes">What would you like to discuss? (optional)</label><textarea id="call-notes" name="notes" rows="4" maxlength="2000"></textarea></div>
         <div class="field-full"><button type="submit">Request call</button><div class="form-feedback" role="status"></div></div>
       </form></section></div>`;
     const form = document.querySelector('#call-form');
+    const calendar = document.querySelector('#call-calendar');
+    const timeSelect = form.elements.preferredAt;
+    let availability;
+    let selectedDay = '';
+    const monthOffset = (month, offset) => {
+      const [year, value] = month.split('-').map(Number);
+      return new Date(Date.UTC(year, value - 1 + offset, 1)).toISOString().slice(0, 7);
+    };
+    async function loadCalendar(month) {
+      calendar.setAttribute('aria-busy', 'true');
+      selectedDay = '';
+      timeSelect.innerHTML = '<option value="">Select a day first</option>';
+      timeSelect.disabled = true;
+      try {
+        availability = await api(`/api/call-availability${month ? `?month=${encodeURIComponent(month)}` : ''}`);
+        const [year, value] = availability.month.split('-').map(Number);
+        const label = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, value - 1, 1)));
+        const firstWeekday = new Date(Date.UTC(year, value - 1, 1)).getUTCDay();
+        calendar.innerHTML = `<div class="call-calendar-heading"><button type="button" class="button-secondary" data-month="-1" aria-label="Previous month" ${availability.month <= availability.minMonth ? 'disabled' : ''}>&larr;</button><strong>${esc(label)}</strong><button type="button" class="button-secondary" data-month="1" aria-label="Next month" ${availability.month >= availability.maxMonth ? 'disabled' : ''}>&rarr;</button></div>
+          <div class="call-calendar-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => `<span>${day}</span>`).join('')}${'<span></span>'.repeat(firstWeekday)}${availability.days.map(day => `<button type="button" data-day="${day.date}" aria-pressed="false" aria-label="${day.date}${day.slots.length ? ', available' : ', unavailable'}" ${day.slots.length ? '' : 'disabled'}>${Number(day.date.slice(-2))}</button>`).join('')}</div>
+          <p class="muted">Unavailable days are disabled. Up to five requests are available per day.</p>`;
+      } finally {
+        calendar.removeAttribute('aria-busy');
+      }
+    }
+    calendar.addEventListener('click', async event => {
+      if (calendar.getAttribute('aria-busy') === 'true') return;
+      const button = event.target.closest('button');
+      if (!button) return;
+      try {
+        if (button.dataset.month) {
+          await loadCalendar(monthOffset(availability.month, Number(button.dataset.month)));
+        } else if (button.dataset.day) {
+          selectedDay = button.dataset.day;
+          calendar.querySelectorAll('[data-day]').forEach(day => {
+            const selected = day.dataset.day === selectedDay;
+            day.classList.toggle('selected', selected);
+            day.setAttribute('aria-pressed', String(selected));
+          });
+          const slots = availability.days.find(day => day.date === selectedDay).slots;
+          const newYork = new Intl.DateTimeFormat(undefined, { timeZone: availability.timezone, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+          const local = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+          timeSelect.innerHTML = `<option value="">Select a time</option>${slots.map(slot => `<option value="${esc(slot)}">${esc(newYork.format(new Date(slot)))} — ${esc(local.format(new Date(slot)))} local</option>`).join('')}`;
+          timeSelect.disabled = false;
+        }
+      } catch (error) {
+        form.querySelector('.form-feedback').textContent = error.message;
+        form.querySelector('.form-feedback').className = 'form-feedback error';
+      }
+    });
+    await loadCalendar();
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const button = form.querySelector('button');
@@ -1072,11 +1159,7 @@
       button.disabled = true;
       try {
         const data = Object.fromEntries(new FormData(form));
-        const localTime = data.preferredAt;
-        const preferred = new Date(localTime);
-        const localRoundTrip = Number.isFinite(preferred.getTime()) ? new Date(preferred.getTime() - preferred.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
-        if (!timezone || localRoundTrip !== localTime) throw new Error('Choose a valid local time and ensure your browser time zone is available.');
-        data.preferredAt = preferred.toISOString();
+        if (!timezone || !selectedDay || !data.preferredAt) throw new Error('Choose an available day and time and ensure your browser time zone is available.');
         data.timezone = timezone;
         const request = await api('/api/call-requests', { method: 'POST', body: JSON.stringify(data) });
         const link = `${location.origin}/book-call?id=${encodeURIComponent(request.id)}#${request.trackingToken}`;
@@ -1085,6 +1168,9 @@
         feedback.className = 'form-feedback error';
         feedback.textContent = error.message;
         button.disabled = false;
+        try { await loadCalendar(availability.month); } catch (refreshError) {
+          feedback.textContent += ` Availability could not be refreshed: ${refreshError.message}`;
+        }
       }
     });
   }
@@ -1108,7 +1194,7 @@
       ].map(([label, value]) => `<div class="stat-card"><span class="muted">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div>
       <div class="panel" style="margin-top:20px"><h2>Payment method analysis</h2><div class="table-wrap"><table><thead><tr><th>Method</th><th>Status</th><th>Orders</th><th>Order value (USD)</th></tr></thead><tbody>${summary.payments.map(row => `<tr><td>${row.method === 'gourl' ? 'GoUrl crypto' : 'Bank transfer'}</td><td>${esc(row.status.replaceAll('_', ' '))}</td><td>${row.count}</td><td>$${Number(row.total_usd).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>`).join('') || '<tr><td colspan="4">No orders yet.</td></tr>'}</tbody></table></div></div>
       <div class="admin-tabs" role="tablist">
-        <button type="button" data-tab="orders" aria-selected="true">Orders</button><button type="button" data-tab="cars" aria-selected="false">Vehicles</button><button type="button" data-tab="promos" aria-selected="false">Promo codes</button><button type="button" data-tab="bank" aria-selected="false">Bank details</button><button type="button" data-tab="calls" aria-selected="false">Call requests</button><button type="button" data-tab="messages" aria-selected="false">Messages</button><button type="button" data-tab="contact" aria-selected="false">Contact details</button><button type="button" data-tab="emails" aria-selected="false">Email previews</button>
+        <button type="button" data-tab="orders" aria-selected="true">Orders</button><button type="button" data-tab="users" aria-selected="false">Users</button><button type="button" data-tab="cars" aria-selected="false">Vehicles</button><button type="button" data-tab="promos" aria-selected="false">Promo codes</button><button type="button" data-tab="bank" aria-selected="false">Bank details</button><button type="button" data-tab="calls" aria-selected="false">Call requests</button><button type="button" data-tab="messages" aria-selected="false">Messages</button><button type="button" data-tab="contact" aria-selected="false">Contact details</button><button type="button" data-tab="emails" aria-selected="false">Email previews</button>
       </div><section id="admin-panel" class="panel"><div class="loading-state">Loading dashboard data...</div></section>`;
     const tabs = document.querySelectorAll('[data-tab]');
     tabs.forEach(button => button.addEventListener('click', () => {
@@ -1120,6 +1206,27 @@
 
   async function loadAdminTab(tab) {
     const panel = document.querySelector('#admin-panel');
+    if (tab === 'users') {
+      panel.innerHTML = `<h2>User records</h2><p class="muted">Registered accounts and their order totals. Paid totals include only orders marked paid.</p>
+        <form id="user-search" class="button-row"><input name="search" type="search" aria-label="Search users" maxlength="100" placeholder="Search name or email"><button type="submit">Search</button></form>
+        <div id="user-results" aria-live="polite"></div>`;
+      const form = panel.querySelector('#user-search');
+      const results = panel.querySelector('#user-results');
+      let requestNumber = 0;
+      const load = async page => {
+        const request = ++requestNumber;
+        const data = await api(`/api/admin/users?search=${encodeURIComponent(form.elements.search.value.trim())}&page=${page}`);
+        if (request !== requestNumber || !results.isConnected) return;
+        results.innerHTML = `<p class="muted">${data.total} account(s) · Page ${data.page}</p><div class="table-wrap"><table><thead><tr><th>User</th><th>Role / verification</th><th>Registered</th><th>Orders</th><th>Paid total</th></tr></thead><tbody>${data.users.map(user => `<tr>
+          <td>${esc(user.name)}<br><a href="mailto:${encodeURIComponent(user.email)}">${esc(user.email)}</a></td><td>${esc(user.role)}<br>${user.email_verified ? 'Email verified' : 'Email unverified'}</td>
+          <td>${esc(formatDate(user.created_at))}</td><td>${user.order_count}</td><td>$${Number(user.paid_total).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</td></tr>`).join('') || '<tr><td colspan="5">No users found.</td></tr>'}</tbody></table></div>
+          <div class="button-row"><button type="button" data-user-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>Previous</button><button type="button" data-user-page="${page + 1}" ${page * data.pageSize >= data.total ? 'disabled' : ''}>Next</button></div>`;
+        results.querySelectorAll('[data-user-page]').forEach(button => button.addEventListener('click', () => load(Number(button.dataset.userPage)).catch(showError)));
+      };
+      form.addEventListener('submit', event => { event.preventDefault(); load(1).catch(showError); });
+      await load(1);
+      return;
+    }
     if (tab === 'emails') {
       const { templates } = await api('/api/admin/email-previews');
       panel.innerHTML = `<h2>Email previews</h2><p class="muted">Sample content only. These are the templates used by the application; no emails are sent from this preview.</p>
@@ -1426,6 +1533,7 @@
         heroSwiper = null;
       }
       if (path === '/' || path === '/index.html') return await homePage();
+      if (path === '/about') return aboutPage();
       if (path === '/cars' || path === '/shop.html' || path === '/deal.html') return await carsPage();
       if (path.startsWith('/cars/')) return await carPage(decodeURIComponent(path.slice('/cars/'.length)));
       if (path === '/cart' || path === '/cart.html') return await cartPage();
@@ -1458,7 +1566,7 @@
     shortcut.title = phone ? `Call ${phone}` : 'Request a sales call';
     const phoneElement = document.querySelector('#footer-phone');
     phoneElement.innerHTML = phone ? `<i class="ri-phone-line" aria-hidden="true"></i> <a href="tel:${esc(phone)}">${esc(phone)}</a>` :
-      (state.contact ? 'Phone number not configured. <a href="/book-call">Request a call</a>.' : 'Contact details are temporarily unavailable.');
+      (state.contact ? '<a href="/book-call">Request a call</a>.' : 'Contact details are temporarily unavailable.');
     document.querySelector('#footer-address').textContent = state.contact?.address || '';
     document.querySelector('#footer-hours').textContent = state.contact?.hours || '';
   }
