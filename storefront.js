@@ -1037,7 +1037,7 @@
   function contactInfo() {
     if (!state.contact) return '<p class="muted">Contact details are temporarily unavailable.</p>';
     const { phone, address, hours } = state.contact;
-    return `<div class="contact-detail"><i class="ri-mail-line" aria-hidden="true"></i><div><h3>Email</h3><a href="mailto:marvelwilsononit@gmail.com">marvelwilsononit@gmail.com</a></div></div>
+    return `<div class="contact-detail"><i class="ri-mail-line" aria-hidden="true"></i><div><h3>Email</h3><a href="mailto:sales@turquex.com">sales@turquex.com</a></div></div>
       <div class="contact-detail"><i class="ri-phone-line" aria-hidden="true"></i><div><h3>Phone</h3>${phone ? `<a href="tel:${esc(phone)}">${esc(phone)}</a>` : '<span class="muted"><a href="/book-call">Request a call</a>.</span>'}</div></div>
       ${address ? `<div class="contact-detail"><i class="ri-map-pin-line" aria-hidden="true"></i><div><h3>Address</h3><span class="muted notranslate" translate="no">${esc(address)}</span></div></div>` : ''}
       ${hours ? `<div class="contact-detail"><i class="ri-time-line" aria-hidden="true"></i><div><h3>Hours</h3><span class="muted">${esc(hours)}</span></div></div>` : ''}`;
