@@ -11,7 +11,8 @@
   const currencyKey = 'torquex.currency';
   const promoKey = 'torquex.promo';
   const pendingCryptoOrderKey = 'torquex.pendingCryptoOrder';
-  const state = { user: null, token: null, rates: null, currency: 'USD', cars: [], timer: null, contact: null };
+  const state = { user: null, adminPath: null, token: null, rates: null, currency: 'USD', cars: [], timer: null, contact: null };
+  const adminVehicleTable = { search: '', status: '', sort: 'recent', page: 1 };
   let heroSwiper = null;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -110,7 +111,8 @@
     userLinks.hidden = !state.user;
     if (state.user) {
       name.innerHTML = `Hi, <span class="notranslate" translate="no">${esc(state.user.name.split(' ')[0])}</span>`;
-      admin.hidden = state.user.role !== 'admin';
+      admin.hidden = state.user.role !== 'admin' || !state.adminPath;
+      if (state.adminPath) admin.href = state.adminPath;
     }
   }
 
@@ -369,7 +371,11 @@
         }
         state.user = result.user;
         renderAuth();
-        location.href = register && cartItems().length ? '/checkout' : state.user.role === 'admin' ? '/admin' : '/account';
+        if (state.user.role === 'admin') {
+          const current = await api('/api/me');
+          state.adminPath = current.adminPath;
+        }
+        location.href = register && cartItems().length ? '/checkout' : state.adminPath || '/account';
       } catch (error) { showError(error); }
       finally { button.disabled = false; }
     });
@@ -465,6 +471,7 @@
           <button type="button" class="settings-nav-item active" data-settings-section="profile" aria-current="page"><i class="ri-user-line" aria-hidden="true"></i><span><strong>Profile</strong><small>Update your name</small></span><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
           <button type="button" class="settings-nav-item" data-settings-section="password"><i class="ri-lock-line" aria-hidden="true"></i><span><strong>Password</strong><small>Keep your account secure</small></span><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
           <button type="button" class="settings-nav-item" data-settings-section="email"><i class="ri-mail-line" aria-hidden="true"></i><span><strong>Email address</strong><small>Change and verify your email</small></span><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
+          <button type="button" class="settings-nav-item" data-settings-section="addresses"><i class="ri-map-pin-line" aria-hidden="true"></i><span><strong>Saved addresses</strong><small>Manage checkout details</small></span><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
           <a class="settings-back" href="/account"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to my orders</a>
         </nav>
         <section class="panel settings-panel" id="settings-profile" aria-labelledby="profile-heading"><span class="eyebrow">Personal information</span><h2 id="profile-heading" tabindex="-1">Profile</h2><p class="muted">Update the name displayed on your account.</p>
@@ -492,7 +499,62 @@
           <div><button type="submit">Confirm new email</button></div><div class="form-feedback" role="status"></div><button type="button" class="settings-text-link restart-email">Start again or request a new code</button></form>
           <div id="email-success" class="settings-complete" role="status" hidden><i class="ri-checkbox-circle-line" aria-hidden="true"></i><h3>Email address updated</h3><p class="muted">Your new email is ready to use. Other signed-in sessions have been signed out.</p><button type="button" class="button-secondary restart-email">Change email again</button></div>
         </section>
+        <section class="panel settings-panel" id="settings-addresses" hidden><h2 tabindex="-1">Saved addresses</h2><p class="muted">Manage details for future orders. Existing orders keep their original details.</p>
+          <div id="address-list" aria-live="polite"></div>
+          <form id="address-form" class="stack"><h3 id="address-form-heading">Add an address</h3>
+            <label>Label <input name="label" maxlength="60" placeholder="Home"></label>
+            <label>Full name <input name="name" maxlength="200" required></label>
+            <label>Email <input name="email" type="email" maxlength="200" required></label>
+            <label>Phone <input name="phone" maxlength="200" required></label>
+            <label>Street address <input name="address" maxlength="200" required></label>
+            <label>City <input name="city" maxlength="200" required></label>
+            <label>Country <input name="country" maxlength="200" required></label>
+            <div class="button-row"><button type="submit">Save address</button><button type="button" id="address-cancel" class="button-secondary">Clear</button></div><div class="form-feedback" role="status"></div>
+          </form>
+        </section>
       </div></div>`;
+    const addressForm = document.querySelector('#address-form');
+    let editingAddress = null;
+    const clearAddressForm = () => {
+      editingAddress = null;
+      addressForm.reset();
+      document.querySelector('#address-form-heading').textContent = 'Add an address';
+    };
+    const loadAddresses = async () => {
+      const { addresses } = await api('/api/account/addresses');
+      const list = document.querySelector('#address-list');
+      if (!list) return;
+      list.innerHTML = addresses.map(address => `<div class="panel"><strong>${esc(address.label)}</strong><p>${esc(address.name)} · ${esc(address.email)} · ${esc(address.phone)}<br>${esc(address.address)}, ${esc(address.city)}, ${esc(address.country)}</p><div class="button-row"><button type="button" data-edit-address="${esc(address.id)}">Edit</button><button type="button" data-delete-address="${esc(address.id)}">Delete</button></div></div>`).join('') || '<p class="muted">No saved addresses yet.</p>';
+      list.querySelectorAll('[data-edit-address]').forEach(button => button.addEventListener('click', () => {
+        const address = addresses.find(item => item.id === button.dataset.editAddress);
+        editingAddress = address.id;
+        for (const field of ['label', 'name', 'email', 'phone', 'address', 'city', 'country']) addressForm.elements[field].value = address[field];
+        document.querySelector('#address-form-heading').textContent = 'Edit address';
+        addressForm.elements.label.focus();
+      }));
+      list.querySelectorAll('[data-delete-address]').forEach(button => button.addEventListener('click', async () => {
+        if (!confirm('Delete this saved address? Existing orders will not change.')) return;
+        try {
+          await api(`/api/account/addresses/${encodeURIComponent(button.dataset.deleteAddress)}`, { method: 'DELETE' });
+          clearAddressForm();
+          await loadAddresses();
+        } catch (error) { showError(error); }
+      }));
+    };
+    addressForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = addressForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await api(editingAddress ? `/api/account/addresses/${encodeURIComponent(editingAddress)}` : '/api/account/addresses',
+          { method: editingAddress ? 'PUT' : 'POST', body: JSON.stringify(Object.fromEntries(new FormData(addressForm))) });
+        clearAddressForm();
+        await loadAddresses();
+        toast('Address saved.');
+      } catch (error) { showError(error); }
+      finally { button.disabled = false; }
+    });
+    document.querySelector('#address-cancel').addEventListener('click', clearAddressForm);
     const showEmailStep = (step, focus = true) => {
       ['email-request-form', 'old-email-form', 'new-email-form', 'email-success'].forEach((id, index) => {
         document.getElementById(id).hidden = index + 1 !== step;
@@ -521,6 +583,7 @@
         document.querySelector(`#settings-${item.dataset.settingsSection}`).hidden = !selected;
       });
       document.querySelector(`#settings-${button.dataset.settingsSection} h2`).focus();
+      if (button.dataset.settingsSection === 'addresses') loadAddresses().catch(showError);
     }));
     document.querySelectorAll('.restart-email').forEach(button => button.addEventListener('click', () => restartEmail()));
     bindSettingsForm('#profile-form', '/api/account/profile', 'PATCH', () => toast('Name updated.'));
@@ -625,11 +688,12 @@
       return;
     }
     const subtotalUsd = selected.reduce((sum, item) => sum + Math.round(item.car.priceUsd * item.quantity * 100), 0) / 100;
-    const settings = await api('/api/payment-settings');
+    const [settings, addressData] = await Promise.all([api('/api/payment-settings'), api('/api/account/addresses')]);
     app.innerHTML = `${pageHeading('Secure reservation', 'Checkout', 'Complete your contact details and choose how to pay.')}
       <div class="detail-grid">
         <form id="checkout-form" class="stack">
-          <section class="panel stack"><h2>Contact and delivery details</h2>
+          <section class="panel stack"><h2>Contact, billing and delivery details</h2><p class="muted">The same address is used for billing and delivery.</p>
+            <div class="field"><label for="saved-address">Use saved details</label><select id="saved-address"><option value="">Enter new details</option>${addressData.addresses.map(address => `<option value="${esc(address.id)}">${esc(address.label)} · ${esc(address.address)}, ${esc(address.city)}</option>`).join('')}</select></div>
             <div class="form-grid">
               <div class="field field-full"><label for="buyer-name">Full name</label><input id="buyer-name" name="name" required maxlength="200" value="${esc(state.user.name)}"></div>
               <div class="field"><label for="buyer-email">Email</label><input id="buyer-email" name="email" type="email" required maxlength="200" value="${esc(state.user.email)}"></div>
@@ -638,6 +702,7 @@
               <div class="field"><label for="buyer-city">City</label><input id="buyer-city" name="city" required maxlength="100"></div>
               <div class="field"><label for="buyer-country">Country</label><input id="buyer-country" name="country" required maxlength="100"></div>
             </div>
+            <label><input type="checkbox" name="saveAddress"> Save these details for future orders</label>
           </section>
           <section class="panel stack"><h2>Payment method</h2>
             <label class="payment-option"><input type="radio" name="paymentMethod" value="gourl" ${settings.cryptoEnabled ? 'checked' : 'disabled'}>
@@ -661,6 +726,14 @@
       <section id="order-result" class="panel" hidden style="margin-top:24px"></section>`;
     let activePromos = [];
     let orderInFlight = false;
+    document.querySelector('#saved-address').addEventListener('change', event => {
+      const address = addressData.addresses.find(item => item.id === event.target.value);
+      const form = document.querySelector('#checkout-form');
+      for (const field of ['name', 'email', 'phone', 'address', 'city', 'country']) {
+        form.elements[field].value = address ? address[field] : field === 'name' ? state.user.name : field === 'email' ? state.user.email : '';
+      }
+      form.elements.saveAddress.checked = false;
+    });
     const updatePromos = async codes => {
       if (orderInFlight) return;
       const result = document.querySelector('#promo-result');
@@ -723,6 +796,7 @@
             paymentMethod,
             currency: state.currency,
             promoCodes: activePromos,
+            saveAddress: form.has('saveAddress'),
             buyer: Object.fromEntries([...form.entries()].filter(([key]) => ['name', 'email', 'phone', 'address', 'city', 'country'].includes(key)))
           })
         });
@@ -1038,7 +1112,7 @@
     if (!state.contact) return '<p class="muted">Contact details are temporarily unavailable.</p>';
     const { phone, address, hours } = state.contact;
     return `<div class="contact-detail"><i class="ri-mail-line" aria-hidden="true"></i><div><h3>Email</h3><a href="mailto:sales@turquex.com">sales@turquex.com</a></div></div>
-      <div class="contact-detail"><i class="ri-phone-line" aria-hidden="true"></i><div><h3>Phone</h3>${phone ? `<a href="tel:${esc(phone)}">${esc(phone)}</a>` : '<span class="muted"><a href="/book-call">Request a call</a>.</span>'}</div></div>
+      <div class="contact-detail"><i class="ri-phone-line" aria-hidden="true"></i><div><h3>WhatsApp</h3>${phone ? `<a href="https://wa.me/${esc(phone.slice(1))}">${esc(phone)}</a>` : '<span class="muted"><a href="/book-call">Request a call</a>.</span>'}</div></div>
       ${address ? `<div class="contact-detail"><i class="ri-map-pin-line" aria-hidden="true"></i><div><h3>Address</h3><span class="muted notranslate" translate="no">${esc(address)}</span></div></div>` : ''}
       ${hours ? `<div class="contact-detail"><i class="ri-time-line" aria-hidden="true"></i><div><h3>Hours</h3><span class="muted">${esc(hours)}</span></div></div>` : ''}`;
   }
@@ -1207,11 +1281,46 @@
   async function loadAdminTab(tab) {
     const panel = document.querySelector('#admin-panel');
     if (tab === 'users') {
-      panel.innerHTML = `<h2>User records</h2><p class="muted">Registered accounts and their order totals. Paid totals include only orders marked paid.</p>
+      panel.innerHTML = `<h2>User records</h2><p class="muted">Expand a user to view saved addresses and order details. Paid totals include only orders marked paid.</p>
         <form id="user-search" class="button-row"><input name="search" type="search" aria-label="Search users" maxlength="100" placeholder="Search name or email"><button type="submit">Search</button></form>
-        <div id="user-results" aria-live="polite"></div>`;
+        <div id="user-results" aria-live="polite"></div>
+        <section><h2>Contact users</h2><p class="muted">Only essential service announcements may be sent to all verified users. Messages are sent individually. Mail-server acceptance does not guarantee delivery.</p>
+          <form id="service-message-form" class="stack"><label>Recipient <select name="audience"><option value="all">All verified users</option><option value="individual">Selected user</option></select></label>
+            <label id="service-user-label" hidden>Selected user <select name="userId"><option value="">Choose “Message” in the user table</option></select></label>
+            <label>Subject <input name="subject" required maxlength="150"></label><label>Message <textarea name="message" rows="6" required maxlength="10000"></textarea></label>
+            <div><button type="submit">Send message</button></div><div class="form-feedback" role="status"></div>
+          </form></section>`;
       const form = panel.querySelector('#user-search');
       const results = panel.querySelector('#user-results');
+      const mailForm = panel.querySelector('#service-message-form');
+      mailForm.elements.audience.addEventListener('change', () => {
+        panel.querySelector('#service-user-label').hidden = mailForm.elements.audience.value !== 'individual';
+      });
+      mailForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const audience = mailForm.elements.audience.value;
+        const userId = mailForm.elements.userId.value;
+        if (audience === 'individual' && !userId) return toast('Choose a user from the table first.');
+        if (!confirm(audience === 'all' ? 'Send this essential service announcement to all verified users?' : 'Send this message to the selected user?')) return;
+        const button = mailForm.querySelector('button[type="submit"]');
+        const feedback = mailForm.querySelector('.form-feedback');
+        button.disabled = true;
+        let sent = 0, after = '', failed = [];
+        try {
+          do {
+            feedback.textContent = `Sending… ${sent} accepted so far. Keep this page open.`;
+            const result = await api('/api/admin/service-messages', { method: 'POST', body: JSON.stringify({
+              audience, userId, after, subject: mailForm.elements.subject.value, message: mailForm.elements.message.value
+            }) });
+            sent += result.sent;
+            failed.push(...result.failed);
+            after = result.next || '';
+          } while (after);
+          feedback.textContent = `${sent} accepted by the mail server.${failed.length ? ` Failed: ${failed.join(', ')}.` : ''}`;
+        } catch (error) {
+          feedback.textContent = `Sending stopped: ${error.message}. ${sent} accepted in completed batches; the last batch may have partially sent. Do not retry blindly.`;
+        } finally { button.disabled = false; }
+      });
       let requestNumber = 0;
       const load = async page => {
         const request = ++requestNumber;
@@ -1219,9 +1328,28 @@
         if (request !== requestNumber || !results.isConnected) return;
         results.innerHTML = `<p class="muted">${data.total} account(s) · Page ${data.page}</p><div class="table-wrap"><table><thead><tr><th>User</th><th>Role / verification</th><th>Registered</th><th>Orders</th><th>Paid total</th></tr></thead><tbody>${data.users.map(user => `<tr>
           <td>${esc(user.name)}<br><a href="mailto:${encodeURIComponent(user.email)}">${esc(user.email)}</a></td><td>${esc(user.role)}<br>${user.email_verified ? 'Email verified' : 'Email unverified'}</td>
-          <td>${esc(formatDate(user.created_at))}</td><td>${user.order_count}</td><td>$${Number(user.paid_total).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</td></tr>`).join('') || '<tr><td colspan="5">No users found.</td></tr>'}</tbody></table></div>
+          <td>${esc(formatDate(user.created_at))}</td><td>${user.order_count}</td><td>$${Number(user.paid_total).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</td></tr><tr><td colspan="5"><details data-user-details="${esc(user.id)}"><summary>Show details</summary><div>Loading…</div></details><button type="button" data-message-user="${esc(user.id)}">Message</button></td></tr>`).join('') || '<tr><td colspan="5">No users found.</td></tr>'}</tbody></table></div>
           <div class="button-row"><button type="button" data-user-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>Previous</button><button type="button" data-user-page="${page + 1}" ${page * data.pageSize >= data.total ? 'disabled' : ''}>Next</button></div>`;
         results.querySelectorAll('[data-user-page]').forEach(button => button.addEventListener('click', () => load(Number(button.dataset.userPage)).catch(showError)));
+        results.querySelectorAll('[data-message-user]').forEach(button => button.addEventListener('click', () => {
+          const user = data.users.find(item => item.id === button.dataset.messageUser);
+          const option = new Option(`${user.name} · ${user.email}`, user.id, true, true);
+          mailForm.elements.userId.replaceChildren(option);
+          mailForm.elements.audience.value = 'individual';
+          panel.querySelector('#service-user-label').hidden = false;
+          mailForm.elements.subject.focus();
+        }));
+        results.querySelectorAll('[data-user-details]').forEach(details => details.addEventListener('toggle', async () => {
+          if (!details.open || details.dataset.loaded) return;
+          const container = details.querySelector('div');
+          try {
+            const data = await api(`/api/admin/users/${encodeURIComponent(details.dataset.userDetails)}`);
+            const formatAddress = address => [address.name, address.email, address.phone, address.address, address.city, address.country].filter(Boolean).map(esc).join(' · ');
+            container.innerHTML = `<h3>Saved addresses</h3>${data.addresses.map(address => `<p><strong>${esc(address.label)}</strong><br>${formatAddress(address)}</p>`).join('') || '<p>None saved.</p>'}
+              <h3>Order contact and address details</h3>${data.orders.map(order => `<p><strong>${esc(order.id)}</strong> · ${esc(order.status)} · ${esc(formatDate(order.createdAt))}<br>${formatAddress(order.buyer)}</p>`).join('') || '<p>No orders.</p>'}`;
+            details.dataset.loaded = 'true';
+          } catch (error) { container.textContent = `Could not load details: ${error.message}. Close and reopen to retry.`; }
+        }));
       };
       form.addEventListener('submit', event => { event.preventDefault(); load(1).catch(showError); });
       await load(1);
@@ -1377,8 +1505,66 @@
         <div class="field"><label>Body type</label><select name="bodyType"><option>Sedan</option><option>SUV</option><option>Coupe</option><option>Convertible</option><option>Hatchback</option><option>Wagon</option><option>Truck</option><option>Other</option></select></div><div class="field"><label>Image URL</label><input name="imageUrl" placeholder="/assets/img/deal/2.jpg or https://..." maxlength="1000"></div>
         <div class="field field-full"><label>Description</label><textarea name="description" rows="3" maxlength="4000"></textarea></div>
         <div class="button-row field-full"><button type="submit">Save vehicle</button><button id="cancel-car-edit" type="button" class="button-secondary">Clear form</button></div>
-      </form><div class="table-wrap" style="margin-top:25px"><table><thead><tr><th>Vehicle</th><th>Price</th><th>Available stock</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cars.map(car => `<tr><td>${esc(car.year)} ${esc(car.make)} ${esc(car.model)}</td><td>$${Number(car.priceUsd).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td><td>${car.availableStock}</td><td>${esc(car.status.replaceAll('_', ' '))}</td><td><button data-edit-car="${esc(car.id)}">Edit</button><button class="button-danger" data-delete-car="${esc(car.id)}" ${!['available', 'out_of_stock'].includes(car.status) ? 'disabled' : ''}>Delete</button></td></tr>`).join('')}</tbody></table></div>`;
+      </form>
+      <section class="admin-inventory">
+        <h3>Vehicle inventory</h3>
+        <div class="admin-inventory-filters">
+          <label>Search vehicles <input id="vehicle-search" type="search" placeholder="Make, model or year" value="${esc(adminVehicleTable.search)}"></label>
+          <label>Status <select id="vehicle-status"><option value="">All statuses</option><option value="available">Available</option><option value="out_of_stock">Out of stock</option><option value="reserved">Reserved</option><option value="sold">Sold</option></select></label>
+          <label>Sort by <select id="vehicle-sort"><option value="recent">Recently added</option><option value="name">Vehicle name</option><option value="year">Newest year</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="mileage">Lowest mileage</option></select></label>
+        </div>
+        <p id="vehicle-count" class="muted" aria-live="polite"></p>
+        <div class="table-wrap"><table class="admin-vehicle-table"><thead><tr><th scope="col">Vehicle</th><th scope="col">Price (USD)</th><th scope="col">Mileage</th><th scope="col">Specifications</th><th scope="col">Stock</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody id="vehicle-rows"></tbody></table></div>
+        <div class="admin-inventory-pagination button-row"><button type="button" class="button-secondary" id="vehicle-previous">Previous</button><span id="vehicle-page"></span><button type="button" class="button-secondary" id="vehicle-next">Next</button></div>
+      </section>`;
       const form = panel.querySelector('#car-form');
+      const search = panel.querySelector('#vehicle-search');
+      const status = panel.querySelector('#vehicle-status');
+      const sort = panel.querySelector('#vehicle-sort');
+      const rows = panel.querySelector('#vehicle-rows');
+      const previous = panel.querySelector('#vehicle-previous');
+      const next = panel.querySelector('#vehicle-next');
+      const pageSize = 20;
+      status.value = adminVehicleTable.status;
+      sort.value = adminVehicleTable.sort;
+      const renderVehicles = () => {
+        const query = adminVehicleTable.search.trim().toLocaleLowerCase();
+        const filtered = cars.filter(car =>
+          (!adminVehicleTable.status || car.status === adminVehicleTable.status) &&
+          `${car.year} ${car.make} ${car.model} ${car.bodyType} ${car.transmission}`.toLocaleLowerCase().includes(query)
+        );
+        if (adminVehicleTable.sort === 'name') filtered.sort((a, b) => `${a.make} ${a.model} ${a.year}`.localeCompare(`${b.make} ${b.model} ${b.year}`, undefined, { numeric: true }));
+        if (adminVehicleTable.sort === 'year') filtered.sort((a, b) => b.year - a.year);
+        if (adminVehicleTable.sort === 'price-low') filtered.sort((a, b) => a.priceUsd - b.priceUsd);
+        if (adminVehicleTable.sort === 'price-high') filtered.sort((a, b) => b.priceUsd - a.priceUsd);
+        if (adminVehicleTable.sort === 'mileage') filtered.sort((a, b) => a.mileage - b.mileage);
+        const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        adminVehicleTable.page = Math.min(adminVehicleTable.page, pages);
+        const start = (adminVehicleTable.page - 1) * pageSize;
+        panel.querySelector('#vehicle-count').textContent = filtered.length
+          ? `Showing ${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length} vehicles (${cars.length} total).`
+          : `No vehicles found (${cars.length} total).`;
+        panel.querySelector('#vehicle-page').textContent = `Page ${adminVehicleTable.page} of ${pages}`;
+        previous.disabled = adminVehicleTable.page === 1;
+        next.disabled = adminVehicleTable.page === pages;
+        rows.innerHTML = filtered.slice(start, start + pageSize).map(car => {
+          const name = `${car.year} ${car.make} ${car.model}`;
+          return `<tr><td><div class="admin-vehicle">
+            <img src="${esc(car.imageUrl || '/assets/img/deal/2.jpg')}" alt="" loading="lazy">
+            <div><strong>${esc(name)}</strong><br><a href="/cars/${encodeURIComponent(car.id)}">View listing</a>
+              ${car.description ? `<details><summary>Description</summary><p class="preserve-lines">${esc(car.description)}</p></details>` : ''}</div>
+            </div></td><td>$${Number(car.priceUsd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td>${Number(car.mileage).toLocaleString('en-US')} mi</td><td>${esc(car.bodyType)}<br><span class="muted">${esc(car.transmission)}</span></td>
+            <td>${esc(car.availableStock)}</td><td><span class="admin-vehicle-status ${esc(car.status)}">${esc(car.status.replaceAll('_', ' '))}</span></td>
+            <td><div class="admin-vehicle-actions"><button type="button" data-edit-car="${esc(car.id)}" aria-label="Edit ${esc(name)}">Edit</button><button type="button" class="button-danger" data-delete-car="${esc(car.id)}" aria-label="Delete ${esc(name)}" ${!['available', 'out_of_stock'].includes(car.status) ? 'disabled' : ''}>Delete</button></div></td></tr>`;
+        }).join('') || `<tr><td colspan="7">${cars.length ? 'No vehicles match your filters.' : 'No vehicles have been added yet.'}</td></tr>`;
+      };
+      search.addEventListener('input', () => { adminVehicleTable.search = search.value; adminVehicleTable.page = 1; renderVehicles(); });
+      status.addEventListener('change', () => { adminVehicleTable.status = status.value; adminVehicleTable.page = 1; renderVehicles(); });
+      sort.addEventListener('change', () => { adminVehicleTable.sort = sort.value; adminVehicleTable.page = 1; renderVehicles(); });
+      previous.addEventListener('click', () => { adminVehicleTable.page--; renderVehicles(); });
+      next.addEventListener('click', () => { adminVehicleTable.page++; renderVehicles(); });
+      renderVehicles();
       const clearForm = () => { form.reset(); form.elements.id.value = ''; };
       panel.querySelector('#cancel-car-edit').addEventListener('click', clearForm);
       form.addEventListener('submit', async event => {
@@ -1400,23 +1586,26 @@
           await loadAdminTab('cars');
         } catch (error) { showError(error); }
       });
-      panel.querySelectorAll('[data-edit-car]').forEach(button => button.addEventListener('click', () => {
-        const car = cars.find(item => item.id === button.dataset.editCar);
-        for (const [key, value] of Object.entries({
-          id: car.id, make: car.make, model: car.model, year: car.year, priceUsd: car.priceUsd,
-          mileage: car.mileage, transmission: car.transmission, bodyType: car.bodyType,
-          imageUrl: car.imageUrl, description: car.description, availableStock: car.availableStock
-        })) form.elements[key].value = value ?? '';
-        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }));
-      panel.querySelectorAll('[data-delete-car]').forEach(button => button.addEventListener('click', async () => {
-        if (!confirm('Delete this vehicle?')) return;
+      rows.addEventListener('click', async event => {
+        const edit = event.target.closest('[data-edit-car]');
+        if (edit) {
+          const car = cars.find(item => item.id === edit.dataset.editCar);
+          for (const [key, value] of Object.entries({
+            id: car.id, make: car.make, model: car.model, year: car.year, priceUsd: car.priceUsd,
+            mileage: car.mileage, transmission: car.transmission, bodyType: car.bodyType,
+            imageUrl: car.imageUrl, description: car.description, availableStock: car.availableStock
+          })) form.elements[key].value = value ?? '';
+          form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        const remove = event.target.closest('[data-delete-car]');
+        if (!remove || !confirm('Delete this vehicle?')) return;
         try {
-          await api(`/api/admin/cars/${encodeURIComponent(button.dataset.deleteCar)}`, { method: 'DELETE' });
+          await api(`/api/admin/cars/${encodeURIComponent(remove.dataset.deleteCar)}`, { method: 'DELETE' });
           toast('Vehicle deleted.');
           await loadAdminTab('cars');
         } catch (error) { showError(error); }
-      }));
+      });
       return;
     }
     if (tab === 'promos') {
@@ -1545,7 +1734,7 @@
       if (path === '/settings') return settingsPage();
       if (path === '/reset-password') return resetPasswordPage();
       if (path === '/track') return await trackingPage();
-      if (path === '/admin') return await adminPage();
+      if (state.adminPath && path === state.adminPath) return await adminPage();
       if (path === '/contact' || path === '/contact.html') return contactPage();
       if (path === '/book-call') return await bookCallPage();
       app.innerHTML = `<div class="panel empty-state"><h1>Page not found</h1><a class="button" href="/">Return home</a></div>`;
@@ -1561,11 +1750,11 @@
   function renderContactShortcuts() {
     const phone = state.contact?.phone;
     const shortcut = document.querySelector('#phone-shortcut');
-    shortcut.href = phone ? `tel:${phone}` : '/book-call';
-    shortcut.setAttribute('aria-label', phone ? `Call ${phone}` : 'Request a sales call');
-    shortcut.title = phone ? `Call ${phone}` : 'Request a sales call';
+    shortcut.href = phone ? `https://wa.me/${phone.slice(1)}` : '/book-call';
+    shortcut.setAttribute('aria-label', phone ? `WhatsApp ${phone}` : 'Request a sales call');
+    shortcut.title = phone ? `WhatsApp ${phone}` : 'Request a sales call';
     const phoneElement = document.querySelector('#footer-phone');
-    phoneElement.innerHTML = phone ? `<i class="ri-phone-line" aria-hidden="true"></i> <a href="tel:${esc(phone)}">${esc(phone)}</a>` :
+    phoneElement.innerHTML = phone ? `<i class="ri-phone-line" aria-hidden="true"></i> <a href="https://wa.me/${esc(phone.slice(1))}">${esc(phone)}</a>` :
       (state.contact ? '<a href="/book-call">Request a call</a>.' : 'Contact details are temporarily unavailable.');
     document.querySelector('#footer-address').textContent = state.contact?.address || '';
     document.querySelector('#footer-hours').textContent = state.contact?.hours || '';
@@ -1677,6 +1866,7 @@
       const user = me.status === 'fulfilled' ? me.value.user : undefined;
       if (user === null || (user && typeof user.id === 'string' && typeof user.name === 'string' && typeof user.role === 'string')) {
         state.user = user;
+        state.adminPath = me.value.adminPath || null;
       }
       else console.error('Could not load account:', me.status === 'rejected' ? me.reason : 'Invalid account response.');
       if (rates.status === 'fulfilled') state.rates = rates.value;

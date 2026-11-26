@@ -225,6 +225,24 @@ table { width: 100%; border-collapse: collapse; min-width: 650px; }
 th, td { padding: 11px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 th { color: var(--muted); font-size: .8rem; }
 td button { padding: 7px 10px; margin: 2px; font-size: .8rem; }
+.admin-inventory { margin-top: 32px; }
+.admin-inventory-filters { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(2, minmax(150px, 1fr)); gap: 12px; }
+.admin-inventory-filters label { display: grid; gap: 6px; }
+.admin-vehicle-table { min-width: 1000px; }
+.admin-vehicle { display: flex; align-items: flex-start; gap: 12px; min-width: 280px; }
+.admin-vehicle img { width: 88px; height: 64px; flex: none; object-fit: cover; border-radius: 6px; background: var(--panel-light); }
+.admin-vehicle a, .admin-vehicle summary { color: #ff8289; font-size: .82rem; }
+.admin-vehicle summary { cursor: pointer; }
+.admin-vehicle details p { margin: 6px 0; font-size: .82rem; }
+.admin-vehicle-status { display: inline-block; padding: 3px 9px; border-radius: 20px; background: #303541; color: var(--text); font-size: .8rem; text-transform: capitalize; white-space: nowrap; }
+.admin-vehicle-status.available { background: #17392c; color: #a4f0c9; }
+.admin-vehicle-status.reserved { background: #473719; color: #ffdc99; }
+.admin-vehicle-actions { display: flex; gap: 4px; }
+.admin-inventory-pagination { justify-content: flex-end; margin-top: 16px; }
+.admin-inventory-pagination button:disabled { cursor: not-allowed; }
+@media (max-width: 650px) {
+  .admin-inventory-filters { grid-template-columns: 1fr; }
+}
 .timer { color: #ffcf75; font-weight: 700; }
 .brand-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
 .brand-tile { min-height: 100px; display: grid; place-items: center; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-family: 'Orbitron', sans-serif; font-weight: 700; text-align: center; overflow-wrap: anywhere; transition: border-color .3s, transform .3s; }

@@ -23,6 +23,7 @@ const paymentEmail = 'marvelwilsononit@gmail.com';
 const ORDER_LIFETIME_MS = 60 * 60 * 1000;
 const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(48).toString('hex');
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
+let adminPath;
 
 if (process.env.NODE_ENV === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)) {
   throw new Error('SESSION_SECRET must contain at least 32 characters in production.');
@@ -179,7 +180,11 @@ function mailTransport() {
 
 async function sendTemplate(to, type, data) {
   const message = renderEmail(type, data);
-  const result = await mailTransport().sendMail({ from: process.env.SMTP_FROM, to, ...message });
+  return sendMail(to, message);
+}
+
+async function sendMail(to, message, transport = mailTransport()) {
+  const result = await transport.sendMail({ from: process.env.SMTP_FROM, to, ...message });
   if (!Array.isArray(result.accepted) || !result.accepted.some(address => normalizeEmail(typeof address === 'string' ? address : address.address) === normalizeEmail(to))) {
     throw new Error('The email recipient was not accepted by the mail server.');
   }
@@ -386,8 +391,57 @@ app.get('/api/csrf', (req, res) => {
 });
 
 app.get('/api/me', (req, res) => {
-  res.json({ user: req.session.user || null });
+  res.json({ user: req.session.user || null, ...(req.session.user?.role === 'admin' ? { adminPath } : {}) });
 });
+
+function cleanAddress(body) {
+  const details = {};
+  for (const field of ['name', 'email', 'phone', 'address', 'city', 'country']) {
+    const value = String(body[field] || '').trim();
+    if (!value || value.length > 200) throw Object.assign(new Error(`Enter a valid ${field} for the address.`), { status: 400 });
+    details[field] = value;
+  }
+  if (!validEmail(details.email)) throw Object.assign(new Error('Enter a valid contact email address.'), { status: 400 });
+  return details;
+}
+
+async function insertAddress(userId, body) {
+  const details = cleanAddress(body);
+  const label = String(body.label || '').trim() || 'Saved address';
+  if (label.length > 60) throw Object.assign(new Error('Address label must be at most 60 characters.'), { status: 400 });
+  const count = (await db.prepare('SELECT COUNT(*) AS count FROM user_addresses WHERE user_id = ?').get(userId)).count;
+  if (count >= 20) throw Object.assign(new Error('You can save up to 20 addresses.'), { status: 400 });
+  const id = newId();
+  await db.prepare(`INSERT INTO user_addresses (id, user_id, label, name, email, phone, address, city, country, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, userId, label, details.name, details.email, details.phone, details.address, details.city, details.country, nowIso());
+  return { id, label, ...details };
+}
+
+app.get('/api/account/addresses', requireAuth, asyncHandler(async (req, res) => {
+  const addresses = await db.prepare('SELECT id, label, name, email, phone, address, city, country FROM user_addresses WHERE user_id = ? ORDER BY created_at DESC, id').all(req.session.user.id);
+  res.json({ addresses });
+}));
+
+app.post('/api/account/addresses', requireAuth, asyncHandler(async (req, res) => {
+  const address = await db.transaction(() => insertAddress(req.session.user.id, req.body))();
+  res.status(201).json({ address });
+}));
+
+app.put('/api/account/addresses/:id', requireAuth, asyncHandler(async (req, res) => {
+  const details = cleanAddress(req.body);
+  const label = String(req.body.label || '').trim() || 'Saved address';
+  if (label.length > 60) return res.status(400).json({ error: 'Address label must be at most 60 characters.' });
+  const result = await db.prepare(`UPDATE user_addresses SET label = ?, name = ?, email = ?, phone = ?, address = ?, city = ?, country = ?
+    WHERE id = ? AND user_id = ?`).run(label, details.name, details.email, details.phone, details.address, details.city, details.country, req.params.id, req.session.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Address not found.' });
+  res.json({ address: { id: req.params.id, label, ...details } });
+}));
+
+app.delete('/api/account/addresses/:id', requireAuth, asyncHandler(async (req, res) => {
+  const result = await db.prepare('DELETE FROM user_addresses WHERE id = ? AND user_id = ?').run(req.params.id, req.session.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'Address not found.' });
+  res.json({ ok: true });
+}));
 
 app.get('/api/contact-details', asyncHandler(async (req, res) => {
   res.json({ contact: (await jsonSetting('contact_details', {})) });
@@ -1009,15 +1063,9 @@ app.post('/api/orders', requireAuth, orderLimiter, asyncHandler(async (req, res,
     const buyer = req.body.buyer || {};
     if (!['gourl', 'bank'].includes(paymentMethod)) return res.status(400).json({ error: 'Choose a supported payment method.' });
     if (!/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Choose a valid display currency.' });
-    const requiredBuyer = ['name', 'email', 'phone', 'address', 'city', 'country'];
-    const buyerDetails = {};
-    for (const field of requiredBuyer) {
-      const value = String(buyer[field] || '').trim();
-      if (!value || value.length > 200) return res.status(400).json({ error: `Enter a valid ${field} for the order.` });
-      buyerDetails[field] = value;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerDetails.email)) {
-      return res.status(400).json({ error: 'Enter a valid contact email address.' });
+    const buyerDetails = cleanAddress(buyer);
+    if (req.body.saveAddress !== undefined && typeof req.body.saveAddress !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid address save option.' });
     }
     let cryptoPublicKey;
     if (paymentMethod === 'gourl') {
@@ -1033,6 +1081,7 @@ app.post('/api/orders', requireAuth, orderLimiter, asyncHandler(async (req, res,
     const expiresAt = paymentMethod === 'bank' ? null : new Date(Date.now() + ORDER_LIFETIME_MS).toISOString();
     let order;
     const createOrder = db.transaction(async () => {
+      if (req.body.saveAddress) await insertAddress(req.session.user.id, { ...buyerDetails, label: req.body.addressLabel });
       const cars = (await availableSelection(items));
       const subtotalUsd = selectionSubtotal(cars);
       const codes = req.body.promoCodes === undefined ? (req.body.promoCode ? [req.body.promoCode] : []) : req.body.promoCodes;
@@ -1289,6 +1338,49 @@ app.get('/api/admin/users', requireAuth, requireAdmin, asyncHandler(async (req, 
       (SELECT COALESCE(SUM(o.total_usd), 0) FROM orders o WHERE o.user_id = u.id AND o.status = 'paid') AS paid_total
     FROM users u ${where} ORDER BY u.created_at DESC, u.id LIMIT 50 OFFSET ?`).all(pattern, pattern, (page - 1) * 50));
   res.json({ users, page, total, pageSize: 50 });
+}));
+
+app.get('/api/admin/users/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+  const user = await db.prepare('SELECT id, name, email, role, email_verified, created_at FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  const addresses = await db.prepare('SELECT id, label, name, email, phone, address, city, country FROM user_addresses WHERE user_id = ? ORDER BY created_at DESC, id').all(user.id);
+  const orders = await db.prepare('SELECT id, status, created_at, buyer_details FROM orders WHERE user_id = ? ORDER BY created_at DESC, id').all(user.id);
+  res.json({ user, addresses, orders: orders.map(order => ({ id: order.id, status: order.status, createdAt: order.created_at, buyer: JSON.parse(order.buyer_details) })) });
+}));
+
+const serviceMailLimiter = rateLimit({ windowMs: 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false });
+app.post('/api/admin/service-messages', requireAuth, requireAdmin, serviceMailLimiter, asyncHandler(async (req, res) => {
+  const subject = String(req.body.subject || '').trim();
+  const text = String(req.body.message || '').trim();
+  const audience = req.body.audience;
+  const after = String(req.body.after || '');
+  if (!subject || subject.length > 150 || /[\r\n]/.test(subject) || !text || text.length > 10000 ||
+      !['individual', 'all'].includes(audience) || after.length > 200 || /[\x00-\x1f]/.test(after)) {
+    return res.status(400).json({ error: 'Enter a valid subject, message and recipient.' });
+  }
+  let recipients;
+  if (audience === 'individual') {
+    const user = await db.prepare('SELECT id, email FROM users WHERE id = ? AND email_verified = 1').get(String(req.body.userId || ''));
+    if (!user) return res.status(404).json({ error: 'Verified user not found.' });
+    recipients = [user];
+  } else {
+    recipients = await db.prepare('SELECT id, email FROM users WHERE email_verified = 1 AND id > ? ORDER BY id LIMIT 21').all(after);
+  }
+  const hasMore = audience === 'all' && recipients.length > 20;
+  recipients = recipients.slice(0, 20);
+  const transport = mailTransport();
+  let sent = 0;
+  const failed = [];
+  for (const recipient of recipients) {
+    try {
+      await sendMail(recipient.email, { subject, text }, transport);
+      sent++;
+    } catch (error) {
+      console.error(`Service email delivery failed for user ${recipient.id}:`, error);
+      failed.push(recipient.email);
+    }
+  }
+  res.json({ sent, failed, next: hasMore ? recipients.at(-1).id : null });
 }));
 
 app.get('/api/admin/cars', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
@@ -1710,10 +1802,12 @@ app.delete('/api/admin/promos/:id', requireAuth, requireAdmin, asyncHandler(asyn
 }));
 
 const storefront = path.join(root, 'storefront.html');
-const appRoutes = new Set(['/', '/about', '/cars', '/cart', '/checkout', '/login', '/register', '/verify-email', '/account', '/settings', '/reset-password', '/admin', '/contact', '/book-call', '/track']);
-app.get(['/', '/about', '/cars', '/cars/:id', '/cart', '/checkout', '/login', '/register', '/verify-email', '/account', '/settings', '/reset-password', '/admin', '/contact', '/book-call', '/track',
-  '/index.html', '/shop.html', '/shop-detail.html', '/deal.html', '/deal-detail.html', '/cart.html',
-  '/checkout.html', '/login.html', '/register.html', '/contact.html'], (req, res, next) => {
+const appRoutes = new Set(['/', '/about', '/cars', '/cart', '/checkout', '/login', '/register', '/verify-email', '/account', '/settings', '/reset-password', '/contact', '/book-call', '/track']);
+app.get(/.*/, (req, res, next) => {
+    if (req.path === adminPath) {
+      if (!req.session.user || req.session.user.role !== 'admin') return res.redirect('/login');
+      return res.sendFile(storefront);
+    }
     if (req.path.endsWith('.html')) {
       const aliases = {
         '/index.html': '/',
@@ -1747,6 +1841,20 @@ app.use((error, req, res, next) => {
 async function start() {
   await initializePostgres(pool);
   await db.transaction(async () => {
+    if (process.env.ADMIN_PATH) {
+      if (!/^\/manage-[a-zA-Z0-9_-]{16,80}$/.test(process.env.ADMIN_PATH)) {
+        throw new Error('ADMIN_PATH must start with /manage- followed by 16 to 80 letters, digits, underscores or hyphens.');
+      }
+      adminPath = process.env.ADMIN_PATH;
+    } else {
+      let row = await db.prepare("SELECT value FROM settings WHERE key = 'admin_path'").get();
+      if (!row) {
+        const generated = `/manage-${crypto.randomBytes(16).toString('hex')}`;
+        await db.prepare("INSERT INTO settings (key, value) VALUES ('admin_path', ?)").run(generated);
+        row = { value: generated };
+      }
+      adminPath = row.value;
+    }
     await seedCars();
     await seedAdmin();
   })();

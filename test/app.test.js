@@ -73,6 +73,11 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   }
 
   const admin = await createSession('admin@example.test', 'admin-password-12345');
+  const adminPath = (await admin.send('/api/me')).body.adminPath;
+  assert.match(adminPath, /^\/manage-[a-f0-9]{32}$/);
+  assert.equal((await fetch(`${origin}/admin`)).status, 404);
+  assert.equal((await fetch(`${origin}${adminPath}`, { redirect: 'manual' })).status, 302);
+  assert.equal((await fetch(`${origin}${adminPath}`, { headers: { cookie: admin.cookie } })).status, 200);
   const legacySession = await createSession('legacy@example.test', 'legacy-password-12345');
   assert.equal((await legacySession.send('/api/me')).body.user.email, 'legacy@example.test');
   assert.equal((await legacySession.send('/api/admin/users')).response.status, 403);
@@ -117,6 +122,46 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
 
   const customer = await createSession('buyer@example.test', 'buyer-password-12345', 'Test Buyer');
   const jsonHeaders = session => ({ 'content-type': 'application/json', 'x-csrf-token': session.token });
+  assert.equal((await customer.send('/api/me')).body.adminPath, undefined);
+  const address = { label: 'Home', name: 'Test Buyer', email: 'buyer@example.test', phone: '+12025550123', address: '1 Test Street', city: 'Austin', country: 'US' };
+  const savedAddress = await customer.send('/api/account/addresses', { method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify(address) });
+  assert.equal(savedAddress.response.status, 201);
+  const addressId = savedAddress.body.address.id;
+  assert.equal((await legacySession.send(`/api/account/addresses/${addressId}`, { method: 'DELETE', headers: jsonHeaders(legacySession) })).response.status, 404);
+  assert.equal((await customer.send(`/api/account/addresses/${addressId}`, {
+    method: 'PUT', headers: jsonHeaders(customer), body: JSON.stringify({ ...address, city: 'Dallas' })
+  })).response.status, 200);
+  assert.equal((await customer.send('/api/account/addresses')).body.addresses[0].city, 'Dallas');
+  const customerId = (await customer.send('/api/me')).body.user.id;
+  assert.equal((await customer.send(`/api/admin/users/${customerId}`)).response.status, 403);
+  assert.equal((await admin.send(`/api/admin/users/${customerId}`)).body.addresses[0].city, 'Dallas');
+  const message = { audience: 'individual', userId: customerId, subject: 'Service update', message: 'A service update.' };
+  assert.equal((await customer.send('/api/admin/service-messages', { method: 'POST', headers: jsonHeaders(customer), body: JSON.stringify(message) })).response.status, 403);
+  const individualMail = await admin.send('/api/admin/service-messages', { method: 'POST', headers: jsonHeaders(admin), body: JSON.stringify(message) });
+  assert.equal(individualMail.body.sent, 1);
+  assert.deepEqual(individualMail.body.failed, []);
+  assert.ok(mailMessages.some(item => item.to === address.email && item.subject === message.subject));
+  const allMail = await admin.send('/api/admin/service-messages', { method: 'POST', headers: jsonHeaders(admin), body: JSON.stringify({ ...message, audience: 'all' }) });
+  assert.equal(allMail.body.sent, 3);
+  assert.equal(allMail.body.next, null);
+  await pool.query(`INSERT INTO users (id, name, email, password_hash, created_at, email_verified)
+    SELECT 'batch-' || n, 'Batch User', 'batch-' || n || '@example.test', 'hash', '2020-01-01', 1 FROM generate_series(1, 21) AS n`);
+  await pool.query(`INSERT INTO users (id, name, email, password_hash, created_at, email_verified) VALUES
+    ('batch-fail', 'Failure', 'fail@example.test', 'hash', '2020-01-01', 1),
+    ('batch-unverified', 'Unverified', 'unverified@example.test', 'hash', '2020-01-01', 0)`);
+  const firstBatch = await admin.send('/api/admin/service-messages', {
+    method: 'POST', headers: jsonHeaders(admin), body: JSON.stringify({ ...message, audience: 'all' })
+  });
+  assert.equal(firstBatch.body.sent + firstBatch.body.failed.length, 20);
+  assert.ok(firstBatch.body.next);
+  const secondBatch = await admin.send('/api/admin/service-messages', {
+    method: 'POST', headers: jsonHeaders(admin), body: JSON.stringify({ ...message, audience: 'all', after: firstBatch.body.next })
+  });
+  assert.equal(secondBatch.body.next, null);
+  assert.deepEqual([...firstBatch.body.failed, ...secondBatch.body.failed], ['fail@example.test']);
+  assert.equal(firstBatch.body.sent + secondBatch.body.sent, 24);
+  assert.equal(mailMessages.some(item => item.to === 'unverified@example.test' && item.subject === message.subject), false);
+  await pool.query("DELETE FROM users WHERE id LIKE 'batch-%'");
   const missingCsrf = await fetch(`${origin}/api/contact-messages`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
   });
@@ -268,6 +313,7 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
       carIds: [bankCar.body.car.id],
       paymentMethod: 'bank',
       currency: 'USD',
+      saveAddress: true,
       buyer: {
         name: 'Test Buyer',
         email: 'buyer@example.test',
@@ -282,6 +328,11 @@ test('admin-managed inventory can be reserved and confirmed through GoUrl IPN', 
   assert.equal(bankOrder.body.order.status, 'awaiting_bank_assignment');
   assert.equal(bankOrder.body.order.expiresAt, null);
   const bankOrderId = bankOrder.body.order.id;
+  const details = (await admin.send(`/api/admin/users/${customerId}`)).body;
+  assert.equal(details.addresses.length, 2);
+  assert.equal(details.orders.find(item => item.id === bankOrderId).buyer.address, '1 Test Street');
+  assert.equal((await customer.send(`/api/account/addresses/${addressId}`, { method: 'DELETE', headers: jsonHeaders(customer) })).response.status, 200);
+  assert.equal((await admin.send(`/api/admin/users/${customerId}`)).body.orders.find(item => item.id === bankOrderId).buyer.address, '1 Test Street');
   const bankTrackingCode = bankOrder.body.order.tracking.code;
   assert.match(bankTrackingCode, /^TX-[A-F0-9]{32}$/);
   assert.equal(bankOrder.body.order.tracking.emailStatus, 'sent');

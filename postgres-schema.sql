@@ -10,6 +10,20 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (lower(email));
 
+CREATE TABLE IF NOT EXISTS user_addresses (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  label TEXT NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  address TEXT NOT NULL,
+  city TEXT NOT NULL,
+  country TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS user_addresses_user_id ON user_addresses (user_id);
+
 CREATE TABLE IF NOT EXISTS cars (
   id TEXT PRIMARY KEY,
   make TEXT NOT NULL,
